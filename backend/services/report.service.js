@@ -4,14 +4,17 @@
  * Phase 7:  processReport   — AI + IPFS in parallel
  * Phase 8:  createFullReport — AI + IPFS + Blockchain (full pipeline)
  * Phase 9:  Fraud gate       — AI → Fraud Check → (IPFS + Blockchain) or Reject
+ * Phase 10: Rewards + Reputation after blockchain
+ * Phase 11: Duplicate detection before IPFS
  */
 
 import { analyzeImage }  from './ai.service.js';
 import { uploadToIPFS }  from './ipfs.service.js';
 import { createReport as createBlockchainReport } from './blockchain.service.js';
-import { calculateFraudScore } from './fraud.service.js';
-import { awardForReport }      from './reward.service.js';
-import { increaseForReport }   from './reputation.service.js';
+import { calculateFraudScore }              from './fraud.service.js';
+import { checkDuplicate, registerHash }     from './duplicate.service.js';
+import { awardForReport }                   from './reward.service.js';
+import { increaseForReport }                from './reputation.service.js';
 
 // ─── Phase 7 — AI + IPFS ─────────────────────────────────────────────────────
 
@@ -59,15 +62,17 @@ export async function processReport(buffer, mimeType, filename, meta = {}) {
   return { analysis, evidence, errors };
 }
 
-// ─── Phase 8 + 9 — AI → Fraud Gate → IPFS → Blockchain ──────────────────────
+// ─── Phase 8–11 — AI → Fraud → Duplicate → IPFS → Blockchain → Rewards ──────
 
 /**
- * Full pipeline with fraud detection:
+ * Full pipeline:
  *
  *   1. Gemini Vision analysis
- *   2. Fraud detection (Phase 9) — blocks non-civic images
- *   3. IPFS upload              — only if fraud check passes
- *   4. Blockchain tx            — only if fraud check passes
+ *   2. Fraud detection (Phase 9)      — blocks non-civic images
+ *   3. Duplicate detection (Phase 11) — blocks re-submitted images
+ *   4. IPFS upload                    — only if checks pass
+ *   5. Blockchain tx                  — only if checks pass
+ *   6. Reward + Reputation (Phase 10) — after blockchain
  *
  * @param {Buffer} buffer
  * @param {string} mimeType
@@ -81,6 +86,7 @@ export async function processReport(buffer, mimeType, filename, meta = {}) {
  *   evidence?:  object,
  *   blockchain?: object,
  *   blocked?:   boolean,
+ *   duplicate?: boolean,
  * }>}
  */
 export async function createFullReport(buffer, mimeType, filename, meta = {}) {
@@ -117,7 +123,24 @@ export async function createFullReport(buffer, mimeType, filename, meta = {}) {
     };
   }
 
-  // ── Step 3: IPFS Upload (only if fraud check passed) ───────────────────────
+  // ── Step 3: Duplicate Detection (Phase 11) ─────────────────────────────────
+  const dupCheck = checkDuplicate(buffer, reportId);
+
+  if (dupCheck.isDuplicate) {
+    // DUPLICATE — do NOT upload to IPFS, do NOT send to blockchain, do NOT award rewards
+    return {
+      success:         false,
+      reportId,
+      duplicate:       true,
+      similarity:      dupCheck.similarity,
+      existingReportId: dupCheck.existingReportId,
+      reason:          dupCheck.reason,
+      analysis,
+      fraud,
+    };
+  }
+
+  // ── Step 4: IPFS Upload (only if all checks passed) ────────────────────────
   let evidence;
   try {
     evidence = await uploadToIPFS(buffer, mimeType, filename, {
@@ -133,7 +156,7 @@ export async function createFullReport(buffer, mimeType, filename, meta = {}) {
     throw err;
   }
 
-  // ── Step 4: Blockchain Transaction ─────────────────────────────────────────
+  // ── Step 5: Blockchain Transaction ─────────────────────────────────────────
   const blockchain = await createBlockchainReport({
     reportId,
     category:    analysis.category,
@@ -146,7 +169,10 @@ export async function createFullReport(buffer, mimeType, filename, meta = {}) {
     location:    meta.location || 'Unknown',
   });
 
-  // ── Step 5: Reward + Reputation (Phase 10) ──────────────────────────────────
+  // ── Step 5.5: Register hash in duplicate index (Phase 11) ──────────────────
+  registerHash(dupCheck.hash, reportId);
+
+  // ── Step 6: Reward + Reputation (Phase 10) ──────────────────────────────────
   let rewards = null;
   let reputation = null;
 

@@ -197,6 +197,18 @@ export async function createReportController(req, res) {
       });
     }
 
+    // ── 6.5. Duplicate detected? (Phase 11) ──────────────────────────────────
+    if (result.duplicate) {
+      return res.status(409).json({
+        success:          false,
+        duplicate:        true,
+        reportId:         result.reportId,
+        similarity:       result.similarity,
+        existingReportId: result.existingReportId,
+        reason:           result.reason,
+      });
+    }
+
     // ── 7. Success — report created on chain ──────────────────────────────────
     return res.status(200).json({
       success:    true,
