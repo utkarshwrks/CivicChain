@@ -244,3 +244,17 @@ export async function getBadges(address) {
 
   return badges;
 }
+
+/**
+ * Directly award reputation to an address (used by workflow engine).
+ *
+ * @param {string} address
+ * @param {number} points
+ * @param {string} reason
+ * @returns {{ earned: number, reason: string }}
+ */
+export async function awardReputationDirect(address, points, reason) {
+  reputationStore[address] = (reputationStore[address] || 0) + points;
+  console.log(`${LOG} Direct award: +${points} to ${address} for ${reason} (total: ${reputationStore[address]})`);
+  return { earned: points, reason };
+}

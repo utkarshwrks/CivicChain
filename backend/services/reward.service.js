@@ -202,3 +202,17 @@ export async function awardForReport(senderAddress, analysis) {
 export async function getPoints(address) {
   return { points: pointsStore[address] || 0 };
 }
+
+/**
+ * Directly award points to an address (used by workflow engine).
+ *
+ * @param {string} address
+ * @param {number} points
+ * @param {string} reason
+ * @returns {{ earned: number, reason: string }}
+ */
+export async function awardDirect(address, points, reason) {
+  pointsStore[address] = (pointsStore[address] || 0) + points;
+  console.log(`${LOG} Direct award: +${points} to ${address} for ${reason} (total: ${pointsStore[address]})`);
+  return { earned: points, reason };
+}

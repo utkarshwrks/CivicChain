@@ -11,6 +11,7 @@ import ipfsRouter   from './routes/ipfs.routes.js';
 import reportRouter    from './routes/report.routes.js';
 import profileRouter   from './routes/profile.routes.js';
 import analyticsRouter from './routes/analytics.routes.js';
+import workflowRouter  from './routes/workflow.routes.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app       = express();
@@ -186,6 +187,9 @@ app.use('/api/profile', profileRouter);
 
 // Analytics dashboard         (GET /api/analytics/*)         ← Phase 12
 app.use('/api/analytics', analyticsRouter);
+
+// Authority workflow           (POST /api/workflow/:id/*)     ← Phase 13
+app.use('/api/workflow', workflowRouter);
 
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok', contracts: CONTRACTS, rpc: SAYMAN_RPC });

@@ -1,0 +1,30 @@
+{
+  "RP-001": {
+    "status": "RESOLVED",
+    "reporter": "750f00e7bdaee4ae0c1cc64191b4eb9f072a51ae",
+    "notes": [
+      {
+        "note": "Verified by authority",
+        "status": "VERIFIED",
+        "timestamp": 1781726157672
+      },
+      {
+        "note": "Team assigned",
+        "status": "IN_PROGRESS",
+        "timestamp": 1781726166606
+      },
+      {
+        "note": "Issue fixed",
+        "status": "RESOLVED",
+        "timestamp": 1781726173720
+      }
+    ],
+    "updatedAt": 1781726173720
+  },
+  "RP-1781726411970": {
+    "status": "VERIFIED",
+    "reporter": "750f00e7bdaee4ae0c1cc64191b4eb9f072a51ae",
+    "notes": [],
+    "updatedAt": 1781726813479
+  }
+}
