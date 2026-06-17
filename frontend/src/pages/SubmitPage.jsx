@@ -1,155 +1,184 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, Cpu, CheckCircle2, AlertCircle, Loader2, Wallet } from 'lucide-react';
-import { useWallet } from '../hooks/useWallet.jsx';
+import { Send, Cpu, CheckCircle2, AlertCircle, Loader2, Upload, Image, X, Shield, Coins, Star } from 'lucide-react';
 import { api } from '../utils/api.js';
-import { buildReportTx } from '../utils/crypto.js';
 
-const CATEGORIES = [
-  'ROAD_DAMAGE', 'FLOOD', 'FIRE', 'STREETLIGHT',
-  'GARBAGE', 'WATER_LEAK', 'UNSAFE_BUILDING', 'OTHER',
-];
+const STEPS = ['Uploading', 'AI Analysis', 'Fraud Check', 'IPFS Upload', 'Blockchain', 'Rewards'];
 
-export default function SubmitPage({ onConnect }) {
-  const { wallet, refresh } = useWallet();
-  const [form, setForm]     = useState({ category: '', description: '', location: '' });
-  const [ai, setAi]         = useState(null);
-  const [status, setStatus] = useState(null); // null | 'loading' | 'success' | 'error'
-  const [txId, setTxId]     = useState('');
-  const [errMsg, setErrMsg] = useState('');
+function StepIndicator({ current }) {
+  return (
+    <div className="step-indicator">
+      {STEPS.map((step, i) => (
+        <div key={step} className={`step-item ${i < current ? 'done' : i === current ? 'active' : ''}`}>
+          {i < current ? <CheckCircle2 size={14} /> : i === current ? <Loader2 size={14} className="spin" /> : <span className="step-dot" />}
+          <span>{step}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
 
-  // AI preview while typing
-  const runAi = useCallback(async (desc, cat) => {
-    if (desc.length < 10) { setAi(null); return; }
-    try { setAi(await api.aiVerify({ description: desc, category: cat })); } catch {}
-  }, []);
+export default function SubmitPage() {
+  const [file, setFile]         = useState(null);
+  const [preview, setPreview]   = useState(null);
+  const [status, setStatus]     = useState(null); // null | 'loading' | 'success' | 'error' | 'duplicate'
+  const [step, setStep]         = useState(0);
+  const [result, setResult]     = useState(null);
+  const [errMsg, setErrMsg]     = useState('');
+  const fileRef                 = useRef(null);
 
-  useEffect(() => {
-    const id = setTimeout(() => runAi(form.description, form.category), 600);
-    return () => clearTimeout(id);
-  }, [form.description, form.category, runAi]);
+  function handleFile(e) {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    setFile(f);
+    setPreview(URL.createObjectURL(f));
+    setStatus(null);
+    setResult(null);
+  }
+
+  function clearFile() {
+    setFile(null);
+    setPreview(null);
+    setStatus(null);
+    setResult(null);
+    if (fileRef.current) fileRef.current.value = '';
+  }
 
   async function submit() {
-    if (!wallet) return;
+    if (!file) return;
     setStatus('loading');
     setErrMsg('');
+    setStep(0);
+
+    // Simulate step progress (actual pipeline does all steps server-side)
+    const stepTimer = setInterval(() => setStep(s => Math.min(s + 1, STEPS.length - 1)), 2800);
+
     try {
-      // 1. Fresh nonce
-      const { nonce } = await api.nonce(wallet.address);
+      const data = await api.submitReport(file);
 
-      // 2. Build + sign tx — flat SAYMAN format
-      const tx = await buildReportTx({
-        wallet,
-        nonce,
-        category:    form.category,
-        description: form.description,
-        location:    form.location,
-      });
+      clearInterval(stepTimer);
+      setStep(STEPS.length);
 
-      // 3. Broadcast
-      const result = await api.broadcast(tx);
-      setTxId(result.txId || result.id || '');
+      if (data.duplicate) {
+        setStatus('duplicate');
+        setErrMsg(data.reason || 'This image has already been reported.');
+        setResult(data);
+        return;
+      }
+
+      setResult(data);
       setStatus('success');
-      setForm({ category: '', description: '', location: '' });
-      setAi(null);
-      await refresh(wallet.address);
     } catch (e) {
-      console.error(e);
-      setErrMsg(e.message || 'Broadcast failed');
+      clearInterval(stepTimer);
+      setErrMsg(e.message || 'Report submission failed');
       setStatus('error');
     }
   }
 
-  const valid = form.category && form.description.length >= 20 && form.location;
-
-  if (!wallet) return (
-    <div className="page center-page">
-      <motion.div className="connect-prompt"
-        initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-        <Wallet size={48} />
-        <h2>Connect your wallet</h2>
-        <p>Reports are signed with your wallet key and recorded on-chain.</p>
-        <button className="btn-primary" onClick={onConnect}>Connect Wallet</button>
-      </motion.div>
-    </div>
-  );
-
   return (
     <div className="page">
-      <motion.div className="form-card"
-        initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+      <motion.div className="form-card" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
 
-        <h2 className="form-title">Submit a Report</h2>
-        <p className="form-sub">Signed with your wallet · broadcast to SAYMAN chain.</p>
+        <h2 className="form-title">Submit a Civic Report</h2>
+        <p className="form-sub">Upload an image → AI analysis → IPFS → Blockchain → Rewards. Fully automated.</p>
 
+        {/* Image Upload */}
         <div className="field">
-          <label>Category</label>
-          <div className="cat-grid">
-            {CATEGORIES.map(c => (
-              <button key={c}
-                className={`cat-btn ${form.category === c ? 'active' : ''}`}
-                onClick={() => setForm(f => ({ ...f, category: c }))}>
-                {c.replace(/_/g, ' ')}
-              </button>
-            ))}
-          </div>
+          <label>Civic Issue Image</label>
+          {!preview ? (
+            <div className="upload-zone" onClick={() => fileRef.current?.click()}>
+              <Upload size={32} />
+              <span>Click to upload or drag an image</span>
+              <span className="hint">JPEG, PNG, WebP — max 10 MB</span>
+            </div>
+          ) : (
+            <div className="preview-zone">
+              <img src={preview} alt="Preview" className="preview-img" />
+              <button className="preview-clear" onClick={clearFile}><X size={16} /></button>
+            </div>
+          )}
+          <input ref={fileRef} type="file" accept="image/*" onChange={handleFile} style={{ display: 'none' }} />
         </div>
 
-        <div className="field">
-          <label>Description <span className="hint">min 20 chars</span></label>
-          <textarea rows={4}
-            placeholder="Describe the issue clearly — what you saw, severity, any context."
-            value={form.description}
-            onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
-          <span className="char-count">{form.description.length} / 500</span>
-        </div>
-
-        <div className="field">
-          <label>Location</label>
-          <input type="text"
-            placeholder="Street name, landmark, GPS coords…"
-            value={form.location}
-            onChange={e => setForm(f => ({ ...f, location: e.target.value }))} />
-        </div>
-
+        {/* Pipeline progress */}
         <AnimatePresence>
-          {ai && (
-            <motion.div className={`ai-badge ${ai.isValid ? 'valid' : 'warn'}`}
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              exit={{ opacity: 0, height: 0 }}>
-              <Cpu size={14} />
-              <span>AI: <b>{ai.aiCategory.replace(/_/g, ' ')}</b> — {ai.confidence}% confidence</span>
-              {ai.isValid ? <CheckCircle2 size={14} /> : <AlertCircle size={14} />}
+          {status === 'loading' && (
+            <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}>
+              <StepIndicator current={step} />
             </motion.div>
           )}
         </AnimatePresence>
 
+        {/* Success result */}
         <AnimatePresence>
-          {status === 'success' && (
-            <motion.div className="alert success"
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-              <CheckCircle2 size={14} />
-              &nbsp;Report broadcast!{txId && <> Tx: <code>{txId.slice(0, 16)}…</code></>}
+          {status === 'success' && result && (
+            <motion.div className="result-card success" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+              <div className="result-header">
+                <CheckCircle2 size={20} />
+                <span>Report Created Successfully!</span>
+              </div>
+              <div className="result-grid">
+                <div className="result-item">
+                  <Cpu size={14} />
+                  <span>{result.analysis?.category?.replace(/_/g, ' ')}</span>
+                  <span className="result-tag">{result.analysis?.confidence}%</span>
+                </div>
+                <div className="result-item">
+                  <Shield size={14} />
+                  <span>Severity: {result.analysis?.severity}</span>
+                </div>
+                <div className="result-item">
+                  <Coins size={14} />
+                  <span>+{result.rewards?.earned || 0} points</span>
+                </div>
+                <div className="result-item">
+                  <Star size={14} />
+                  <span>+{result.reputation?.earned || 0} reputation</span>
+                </div>
+              </div>
+              {result.blockchain?.txHash && (
+                <div className="result-tx">
+                  Tx: <code>{result.blockchain.txHash.slice(0, 20)}…</code>
+                </div>
+              )}
+              {result.evidence?.publicUrl && (
+                <a href={result.evidence.publicUrl} target="_blank" rel="noreferrer" className="result-link">
+                  <Image size={12} /> View on IPFS
+                </a>
+              )}
             </motion.div>
           )}
-          {status === 'error' && (
-            <motion.div className="alert error"
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+        </AnimatePresence>
+
+        {/* Duplicate warning */}
+        <AnimatePresence>
+          {status === 'duplicate' && (
+            <motion.div className="alert error" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
               <AlertCircle size={14} />
-              &nbsp;{errMsg || 'Broadcast failed — check balance and retry.'}
+              &nbsp;{errMsg}
+              {result?.existingReportId && <> (Report: <code>{result.existingReportId}</code>)</>}
             </motion.div>
           )}
         </AnimatePresence>
 
+        {/* Error */}
+        <AnimatePresence>
+          {status === 'error' && (
+            <motion.div className="alert error" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+              <AlertCircle size={14} />
+              &nbsp;{errMsg || 'Submission failed — please try again.'}
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Submit button */}
         <button className="btn-primary full" onClick={submit}
-          disabled={!valid || status === 'loading'}>
+          disabled={!file || status === 'loading'}>
           {status === 'loading'
-            ? <><Loader2 size={14} className="spin" /> Signing &amp; Broadcasting…</>
+            ? <><Loader2 size={14} className="spin" /> Processing…</>
             : <><Send size={14} /> Submit Report</>}
         </button>
 
-        <p className="wallet-hint">Signing as <code>{wallet.address.slice(0, 10)}…</code></p>
       </motion.div>
     </div>
   );

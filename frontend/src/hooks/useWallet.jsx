@@ -20,11 +20,11 @@ export function WalletProvider({ children }) {
     try {
       const [b, r, rw] = await Promise.allSettled([
         api.balance(addr),
-        api.reputation(addr),
-        api.rewards(addr),
+        api.profileReputation(addr),
+        api.profilePoints(addr),
       ]);
       if (b.status === 'fulfilled') setBalance(b.value.balance ?? 0);
-      if (r.status === 'fulfilled') setReputation(r.value.reputation ?? 0);
+      if (r.status === 'fulfilled') setReputation(r.value.score ?? 0);
       if (rw.status === 'fulfilled') setRewards(rw.value.points ?? 0);
     } catch {}
   }, []);

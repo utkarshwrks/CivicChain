@@ -4,7 +4,7 @@ import { Radio, Wallet, LogOut, ChevronDown, Copy, CheckCircle2 } from 'lucide-r
 import { useWallet } from '../hooks/useWallet.jsx';
 import WalletModal from './WalletModal.jsx';
 
-const TABS = ['Feed', 'Submit', 'Explorer', 'Profile'];
+const TABS = ['Feed', 'Submit', 'Analytics', 'Profile'];
 
 export default function Header({ tab, setTab }) {
   const { wallet, balance, reputation, disconnect } = useWallet();

@@ -5,14 +5,14 @@ import Header from './components/Header.jsx';
 import WalletModal from './components/WalletModal.jsx';
 import FeedPage from './pages/FeedPage.jsx';
 import SubmitPage from './pages/SubmitPage.jsx';
-import ExplorerPage from './pages/ExplorerPage.jsx';
+import AnalyticsPage from './pages/AnalyticsPage.jsx';
 import ProfilePage from './pages/ProfilePage.jsx';
 
 const PAGE_MAP = {
-  Feed:     FeedPage,
-  Submit:   SubmitPage,
-  Explorer: ExplorerPage,
-  Profile:  ProfilePage,
+  Feed:      FeedPage,
+  Submit:    SubmitPage,
+  Analytics: AnalyticsPage,
+  Profile:   ProfilePage,
 };
 
 function AppInner() {
