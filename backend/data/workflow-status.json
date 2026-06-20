@@ -1,0 +1,96 @@
+{
+  "RP-001": {
+    "status": "RESOLVED",
+    "reporter": "750f00e7bdaee4ae0c1cc64191b4eb9f072a51ae",
+    "notes": [
+      {
+        "note": "Verified by authority",
+        "status": "VERIFIED",
+        "timestamp": 1781726157672
+      },
+      {
+        "note": "Team assigned",
+        "status": "IN_PROGRESS",
+        "timestamp": 1781726166606
+      },
+      {
+        "note": "Issue fixed",
+        "status": "RESOLVED",
+        "timestamp": 1781726173720
+      }
+    ],
+    "updatedAt": 1781726173720
+  },
+  "RP-1781726411970": {
+    "status": "VERIFIED",
+    "reporter": "750f00e7bdaee4ae0c1cc64191b4eb9f072a51ae",
+    "notes": [],
+    "updatedAt": 1781726813479
+  },
+  "24d9eaa6-8fd6-44e3-8159-2ee376775704": {
+    "status": "RESOLVED",
+    "reporter": "750f00e7bdaee4ae0c1cc64191b4eb9f072a51ae",
+    "notes": [
+      {
+        "note": "Verified via dashboard",
+        "status": "VERIFIED",
+        "timestamp": 1781730749726
+      },
+      {
+        "note": "Work started via dashboard",
+        "status": "IN_PROGRESS",
+        "timestamp": 1781730755766
+      },
+      {
+        "note": "Resolved via dashboard",
+        "status": "RESOLVED",
+        "timestamp": 1781730760988
+      }
+    ],
+    "updatedAt": 1781730760988
+  },
+  "57aba5fd-b694-4142-b356-a00b55614e9b": {
+    "status": "RESOLVED",
+    "reporter": "750f00e7bdaee4ae0c1cc64191b4eb9f072a51ae",
+    "notes": [
+      {
+        "note": "Verified via dashboard",
+        "status": "VERIFIED",
+        "timestamp": 1781772384761
+      },
+      {
+        "note": "Work started via dashboard",
+        "status": "IN_PROGRESS",
+        "timestamp": 1781772391383
+      },
+      {
+        "note": "Resolved via dashboard",
+        "status": "RESOLVED",
+        "timestamp": 1781772397871
+      }
+    ],
+    "updatedAt": 1781772397871
+  },
+  "777f946c-c2fd-42c3-be2a-337bd2c32cda": {
+    "status": "RESOLVED",
+    "reporter": "750f00e7bdaee4ae0c1cc64191b4eb9f072a51ae",
+    "notes": [
+      {
+        "note": "Verified via dashboard",
+        "status": "VERIFIED",
+        "timestamp": 1781778381780
+      },
+      {
+        "note": "Work started via dashboard",
+        "status": "IN_PROGRESS",
+        "timestamp": 1781778388876
+      },
+      {
+        "note": "Mark Resolved via Municipal Dashboard",
+        "status": "RESOLVED",
+        "timestamp": 1781799816435
+      }
+    ],
+    "updatedAt": 1781799816435
+  }
+}

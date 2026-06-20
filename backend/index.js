@@ -6,6 +6,21 @@ import helmet    from 'helmet';
 import fs        from 'fs';
 import path      from 'path';
 import { fileURLToPath } from 'url';
+import aiRouter        from './routes/ai.routes.js';
+import ipfsRouter      from './routes/ipfs.routes.js';
+import reportRouter    from './routes/report.routes.js';
+import profileRouter   from './routes/profile.routes.js';
+import analyticsRouter from './routes/analytics.routes.js';
+import workflowRouter    from './routes/workflow.routes.js';
+import authRouter        from './routes/auth.routes.js';
+import rbacRouter        from './routes/rbac.routes.js';
+import departmentRouter  from './routes/department.routes.js';
+import assignmentRouter  from './routes/assignment.routes.js';
+import { getCache, setCache, invalidateCache, getReports } from './services/reportCache.js';
+import { getPoints } from './services/reward.service.js';
+import { getReputation } from './services/reputation.service.js';
+import { ensureAssigned, enrichReports } from './services/assignment.service.js';
+import { listCitiesController } from './controllers/department.controller.js'; // Phase 14C
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app       = express();
@@ -71,62 +86,86 @@ async function rpc(endpoint, method = 'GET', body = null, retries = 2) {
   }
 }
 
-// ─── Block scanner — extracts REPORT_CREATE txs from recent blocks ────────────
-// Cache so we don't re-fetch blocks we already have
-const reportCache = { reports: [], lastBlock: 0, updatedAt: 0 };
 const CACHE_TTL   = 15_000; // 15s
 
 async function scanReports() {
   const now = Date.now();
-  if (now - reportCache.updatedAt < CACHE_TTL) return reportCache.reports;
+  if (now - getCache().updatedAt < CACHE_TTL) return getReports();
 
   try {
     const stats      = await rpc('/api/stats');
     const latest     = stats.blocks || 0;
-    const scanFrom   = Math.max(1, reportCache.lastBlock + 1);
+    const scanFrom   = Math.max(1, getCache().lastBlock + 1);
     const scanTo     = latest;
     const newReports = [];
 
-    // Scan up to 50 new blocks per refresh to avoid hammering the RPC
-    const limit = Math.min(scanTo - scanFrom + 1, 50);
-    const start = Math.max(scanFrom, scanTo - limit + 1);
+    let start;
+    if (getCache().lastBlock === 0) {
+      start = 1;
+    } else {
+      const limit = Math.min(scanTo - scanFrom + 1, 50);
+      start = Math.max(scanFrom, scanTo - limit + 1);
+    }
 
-    for (let i = start; i <= scanTo; i++) {
-      try {
-        const block = await rpc(`/api/blocks/${i}`);
-        const txs   = block.transactions || block.data?.transactions || [];
+    const batchSize = 30;
+    for (let i = start; i <= scanTo; i += batchSize) {
+      const batchStart = i;
+      const batchEnd = Math.min(scanTo, i + batchSize - 1);
+      const promises = [];
+      for (let j = batchStart; j <= batchEnd; j++) {
+        promises.push(
+          rpc(`/api/blocks/${j}`).catch(err => {
+            if (!isProd) console.warn(`Error fetching block ${j}:`, err.message);
+            return null;
+          })
+        );
+      }
+      const blocks = await Promise.all(promises);
+      for (const block of blocks) {
+        if (!block) continue;
+        const txs = block.transactions || block.data?.transactions || [];
         for (const tx of txs) {
           if (tx.type === 'REPORT_CREATE' && tx.data) {
+            // Phase 14C: parse city from structured location JSON
+            let city = null;
+            try {
+              const loc = typeof tx.data.location === 'string'
+                ? JSON.parse(tx.data.location)
+                : tx.data.location;
+              city = loc?.city || null;
+            } catch { city = null; }
+
             newReports.push({
               id:          tx.id,
               reporter:    tx.data.from,
               category:    tx.data.category   || 'OTHER',
               description: tx.data.description || '',
               location:    tx.data.location   || '',
+              city,                                     // Phase 14C
               severity:    tx.data.severity   || 'MEDIUM',
               status:      'OPEN',
               createdAt:   tx.timestamp,
-              blockIndex:  block.index ?? block.height ?? i,
+              blockIndex:  block.index ?? block.height ?? block.index,
               txId:        tx.id,
             });
           }
         }
-      } catch {}
+      }
     }
 
     // Merge new with existing, dedupe by id, sort newest first
-    const all     = [...reportCache.reports, ...newReports];
+    const all     = [...getCache().reports, ...newReports];
     const deduped = Object.values(Object.fromEntries(all.map(r => [r.id, r])));
     deduped.sort((a, b) => b.createdAt - a.createdAt);
 
-    reportCache.reports   = deduped;
-    reportCache.lastBlock = scanTo;
-    reportCache.updatedAt = now;
+    setCache(deduped, scanTo, now);
+    // Phase 14B: auto-assign departments for newly scanned reports
+    if (newReports.length > 0) ensureAssigned(newReports);
   } catch (e) {
     if (!isProd) console.warn('scanReports error:', e.message);
   }
 
-  return reportCache.reports;
+  return getReports();
 }
 
 // ─── AI classifier ────────────────────────────────────────────────────────────
@@ -167,9 +206,43 @@ function validateTx(tx) {
 
 // ─── Routes ───────────────────────────────────────────────────────────────────
 
+// Gemini Vision AI routes  (POST /api/ai/analyze)
+app.use('/api/ai',     aiRouter);
+
+// IPFS / Pinata routes      (POST /api/ipfs/upload)
+app.use('/api/ipfs',   ipfsRouter);
+
+// Unified pipeline          (POST /api/report/process)  ← Phase 7
+app.use('/api/report', reportRouter);
+
+// Profile endpoints          (GET /api/profile/:address/*)  ← Phase 10
+app.use('/api/profile', profileRouter);
+
+// Analytics dashboard         (GET /api/analytics/*)         ← Phase 12
+app.use('/api/analytics', analyticsRouter);
+
+// Authority workflow           (POST /api/workflow/:id/*)     ← Phase 13
+app.use('/api/workflow', workflowRouter);
+
+// Wallet authentication        (GET/POST /api/auth/*)         ← Phase 14A
+app.use('/api/auth', authRouter);
+
+// Role management              (GET/POST /api/rbac/*)         ← Phase 14A
+app.use('/api/rbac', rbacRouter);
+
+// Phase 14C: City list (public)
+app.get('/api/cities', listCitiesController);
+
+// Department routing           (GET/POST /api/departments/*)  ← Phase 14B
+app.use('/api/departments', departmentRouter);
+
+// Assignment management        (GET/POST /api/assignments/*)  ← Phase 14B
+app.use('/api/assignments', assignmentRouter);
+
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok', contracts: CONTRACTS, rpc: SAYMAN_RPC });
 });
+
 
 app.get('/api/stats', async (_req, res) => {
   try { res.json(await rpc('/api/stats')); }
@@ -206,7 +279,7 @@ app.post('/api/broadcast', async (req, res) => {
     validateTx(tx);
     const result = await rpc('/api/broadcast', 'POST', tx);
     // Invalidate report cache so next feed load rescans
-    reportCache.updatedAt = 0;
+    invalidateCache();
     let ai = null;
     if (tx.type === 'REPORT_CREATE')
       ai = aiVerify(tx.data?.description, tx.data?.category);
@@ -221,10 +294,14 @@ app.post('/api/broadcast', async (req, res) => {
 app.get('/api/reports', async (req, res) => {
   try {
     let reports = await scanReports();
+    ensureAssigned(reports);          // Phase 14B: auto-assign any missed reports
+    reports = enrichReports(reports); // Phase 14B: add department field
 
-    if (req.query.category) reports = reports.filter(r => r.category === req.query.category);
-    if (req.query.status)   reports = reports.filter(r => r.status   === req.query.status);
-    if (req.query.reporter) reports = reports.filter(r => r.reporter === req.query.reporter);
+    if (req.query.category)   reports = reports.filter(r => r.category   === req.query.category);
+    if (req.query.status)     reports = reports.filter(r => r.status     === req.query.status);
+    if (req.query.reporter)   reports = reports.filter(r => r.reporter   === req.query.reporter);
+    if (req.query.department) reports = reports.filter(r => r.department === req.query.department);
+    if (req.query.city)       reports = reports.filter(r => r.city       === req.query.city);  // Phase 14C
 
     const page     = parseInt(req.query.page     || '1');
     const pageSize = parseInt(req.query.pageSize || '20');
@@ -239,7 +316,7 @@ app.get('/api/reports', async (req, res) => {
 
 app.get('/api/reports/:id', async (req, res) => {
   try {
-    const reports = await scanReports();
+    const reports = enrichReports(await scanReports());
     const report  = reports.find(r => r.id === req.params.id || r.txId === req.params.id);
     if (!report) return res.status(404).json({ error: 'Report not found' });
     res.json(report);
@@ -251,26 +328,19 @@ app.get('/api/reports/:id', async (req, res) => {
 // Reputation + rewards — derived from scanned reports (contract state unavailable)
 app.get('/api/reputation/:address', async (req, res) => {
   try {
-    const reports    = await scanReports();
-    const myReports  = reports.filter(r => r.reporter === req.params.address);
-    // 10 rep per report submitted (matches ReputationManager award logic)
-    const reputation = myReports.length * 10;
-    const level      = reputation >= 200 ? 'Champion'
-                     : reputation >= 100 ? 'Elite'
-                     : reputation >= 50  ? 'Trusted'
-                     : reputation >= 10  ? 'Rising'
-                     : 'Newcomer';
-    res.json({ address: req.params.address, reputation, level });
+    await scanReports();
+    const result = await getReputation(req.params.address);
+    res.json({ address: req.params.address, reputation: result.score, level: result.level });
   } catch (e) {
-    res.status(500).json({ error: e.message, reputation: 0, level: 'Newcomer' });
+    res.status(500).json({ error: e.message, reputation: 0, level: 'NEW' });
   }
 });
 
 app.get('/api/rewards/:address', async (req, res) => {
   try {
-    const reports = await scanReports();
-    const points  = reports.filter(r => r.reporter === req.params.address).length * 10;
-    res.json({ address: req.params.address, points });
+    await scanReports();
+    const result = await getPoints(req.params.address);
+    res.json({ address: req.params.address, points: result.points });
   } catch (e) {
     res.status(500).json({ error: e.message, points: 0 });
   }
@@ -281,11 +351,13 @@ app.get('/api/leaderboard', async (_req, res) => {
     const reports = await scanReports();
     const counts  = {};
     for (const r of reports) counts[r.reporter] = (counts[r.reporter] || 0) + 1;
-    const leaderboard = Object.entries(counts)
-      .map(([address, count]) => ({ address, score: count * 10 }))
-      .sort((a, b) => b.score - a.score)
-      .slice(0, 20);
-    res.json({ leaderboard });
+    const leaderboard = [];
+    for (const address of Object.keys(counts)) {
+      const { points } = await getPoints(address);
+      leaderboard.push({ address, score: points });
+    }
+    leaderboard.sort((a, b) => b.score - a.score);
+    res.json({ leaderboard: leaderboard.slice(0, 20) });
   } catch (e) {
     res.status(500).json({ error: e.message, leaderboard: [] });
   }
@@ -329,7 +401,7 @@ app.use((err, _req, res, _next) => {
 
 app.listen(PORT, () => {
   console.log('\n╔══════════════════════════════════════╗');
-  console.log('║   CrowdPulse Backend  v2.4           ║');
+  console.log('║   CrowdPulse Backend  v2.7 (Juris) ║');
   console.log('╚══════════════════════════════════════╝');
   console.log(`  API    → http://localhost:${PORT}`);
   console.log(`  SAYMAN → ${SAYMAN_RPC}`);
