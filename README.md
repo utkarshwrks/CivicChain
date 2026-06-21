@@ -1,4 +1,4 @@
-# CrowdPulse — Decentralised Civic Intelligence on SAYMAN Blockchain
+# — Decentralised Civic Intelligence on SAYMAN Blockchain
 
 > Report. Verify. Reward. On-chain.
 
