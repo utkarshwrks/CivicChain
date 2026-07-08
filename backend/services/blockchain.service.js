@@ -14,6 +14,7 @@
 import crypto              from 'crypto';
 import { createRequire }   from 'module';
 import { blockchainConfig } from '../config/blockchain.config.js';
+import { rpc } from './rpc.service.js';
 
 // ─── Elliptic (secp256k1) ─────────────────────────────────────────────────────
 const require  = createRequire(import.meta.url);
@@ -45,34 +46,7 @@ function getDeployerKeyPair() {
   return ec.keyFromPrivate(privateKey, 'hex');
 }
 
-// ─── RPC client ───────────────────────────────────────────────────────────────
-
-async function rpc(endpoint, method = 'GET', body = null, retries = 2) {
-  const url = `${blockchainConfig.rpcUrl}${endpoint}`;
-  for (let attempt = 0; attempt <= retries; attempt++) {
-    const ctrl    = new AbortController();
-    const timeout = setTimeout(() => ctrl.abort(), 15_000);
-    try {
-      const res  = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body:    body ? JSON.stringify(body) : undefined,
-        signal:  ctrl.signal,
-      });
-      const text = await res.text();
-      let data;
-      try { data = JSON.parse(text); }
-      catch { throw new Error(`SAYMAN non-JSON at ${url}: ${text.slice(0, 120)}`); }
-      if (!res.ok) throw new Error(data.error || data.message || `RPC ${res.status}`);
-      return data;
-    } catch (e) {
-      if (attempt === retries) throw e;
-      await new Promise(r => setTimeout(r, 800 * (attempt + 1)));
-    } finally {
-      clearTimeout(timeout);
-    }
-  }
-}
+// Centralized RPC client imported from rpc.service.js
 
 /** Fetch current nonce for a SAYMAN address */
 async function getNonce(address) {

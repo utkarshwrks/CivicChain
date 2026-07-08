@@ -76,7 +76,19 @@ function saveJurisdictions() {
   try {
     const dir = path.dirname(USER_DEPT_PATH);
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(USER_DEPT_PATH, JSON.stringify(jurisdictions, null, 2), 'utf8');
+    const serialized = {};
+    for (const [addr, val] of Object.entries(jurisdictions)) {
+      if (val && val.department) {
+        if (val.city) {
+          serialized[addr] = { department: val.department, city: val.city };
+        } else {
+          serialized[addr] = val.department;
+        }
+      } else {
+        serialized[addr] = null;
+      }
+    }
+    fs.writeFileSync(USER_DEPT_PATH, JSON.stringify(serialized, null, 2), 'utf8');
   } catch (e) {
     console.error(`${LOG} Failed to save user-departments.json:`, e.message);
   }

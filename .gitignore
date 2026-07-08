@@ -10,3 +10,8 @@ city-keys.json
 
 # Build artifacts
 frontend/dist/
+
+# AI Memory files
+AI.md
+ai.md
+

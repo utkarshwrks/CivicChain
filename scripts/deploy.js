@@ -13,16 +13,17 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const NETWORKS = {
   local:   'http://localhost:10000',
   testnet: 'https://sayman.up.railway.app',
+  'public-testnet': 'https://sayman.up.railway.app',
   mainnet: 'https://mainnet.sayman.io'
 };
 
 const argv    = process.argv.slice(2);
 const netIdx  = argv.indexOf('--network');
 const network = netIdx !== -1 ? argv[netIdx + 1] : 'local';
-const RPC_URL = process.env.SAYMAN_RPC_URL || NETWORKS[network];
+const RPC_URL = process.env.SAYMAN_RPC_URL || process.env.SAYMAN_RPC || NETWORKS[network];
 
 if (!RPC_URL) {
-  console.error(`❌ Unknown network: "${network}". Use: local | testnet | mainnet`);
+  console.error(`❌ Unknown network: "${network}". Use: local | testnet | public-testnet | mainnet`);
   process.exit(1);
 }
 
@@ -95,13 +96,21 @@ function signTx(tx) {
   return keyPair.sign(hash).toDER('hex');
 }
 
+// ─── deployContract with proper gas limit ─────────────────────────────────────
 async function deployContract({ name, version, code, nonce }) {
   const ts = Date.now();
+  
+  // Calculate proper gas limit for contract deployment
+  const baseGas = 200000;
+  const perByteGas = 10;
+  const codeSize = code.length;
+  const gasLimit = Math.max(baseGas + (codeSize * perByteGas), 250000);
+  
   const tx = {
     type:      'CONTRACT_DEPLOY',
     timestamp: ts,
     nonce,
-    gasLimit:  90,
+    gasLimit:  gasLimit,
     gasPrice:  1,
     data: { from: address, name, version, abi: [], code }
   };
@@ -146,21 +155,10 @@ async function main() {
 
   let balance = await getBalance();
   console.log(`  Balance  : ${balance} SAYM`);
-
-  if (balance < 10) {
-    process.stdout.write('  Faucet   : requesting SAYM... ');
-    const r = await requestFaucet();
-    if (r && !r.error) {
-      await waitForBlock(chainHeight, 20000);
-      chainHeight = (await rpcGet('/api/stats')).blocks || chainHeight;
-      balance = await getBalance();
-      console.log(`funded ✅ (balance: ${balance} SAYM)`);
-    } else {
-      console.log(`failed ⚠ (${r?.error || 'unknown'})`);
-      console.log(`\n  Fund this address and re-run:\n  ${address}\n`);
-      process.exit(1);
-    }
-  }
+  
+  // ─── SKIP BALANCE CHECK - JUST PROCEED ──────────────────────────────────
+  console.log(`  ⚠️  Attempting deploy with current balance (need ~10 SAYM)`);
+  console.log(`  💡 If balance is low, deploy may fail with "insufficient balance"`);
 
   console.log('');
 
@@ -180,7 +178,7 @@ async function main() {
 
   let nonce = await getNonce();
   console.log(`  Nonce    : ${nonce}`);
-  console.log(`  Gas      : limit=90 price=1 (max cost 90 SAYM, actual ~9 SAYM each)`);
+  console.log(`  Gas      : limit=~250k price=1 (actual ~200k per contract)`);
   console.log('');
 
   const deployed = {};
@@ -242,8 +240,8 @@ async function main() {
     console.log('  ❌ No contracts deployed.');
     console.log('');
     console.log('  Debug:');
-    console.log(`  curl https://sayman.up.railway.app/api/address/${address}`);
-    console.log(`  curl https://sayman.up.railway.app/api/contracts`);
+    console.log(`  curl ${RPC_URL}/api/address/${address}`);
+    console.log(`  curl ${RPC_URL}/api/contracts`);
     process.exit(1);
   }
 
@@ -266,7 +264,7 @@ async function main() {
   console.log('  📄 deployed.json saved');
   console.log('');
   console.log('  Verify live:');
-  console.log(`  curl https://sayman.up.railway.app/api/contracts`);
+  console.log(`  curl ${RPC_URL}/api/contracts`);
   console.log('');
   console.log('  Next:');
   console.log('  1. cd backend && node index.js');

@@ -21,15 +21,17 @@
     "reportId": "test-road-001",
     "department": "ROAD_DEPARTMENT",
     "overriddenBy": "750f00e7bdaee4ae0c1cc64191b4eb9f072a51ae",
-    "assignedAt": 1781782816061,
-    "status": "ASSIGNED"
+    "assignedAt": 1783550944972,
+    "status": "ASSIGNED",
+    "city": null
   },
   "test-garbage-001": {
     "reportId": "test-garbage-001",
     "department": "SANITATION_DEPARTMENT",
     "overriddenBy": "750f00e7bdaee4ae0c1cc64191b4eb9f072a51ae",
-    "assignedAt": 1781782816068,
-    "status": "ASSIGNED"
+    "assignedAt": 1783550944980,
+    "status": "ASSIGNED",
+    "city": null
   },
   "f45d9c9e-9a5d-4b2f-b1f8-2154713cd0aa": {
     "reportId": "f45d9c9e-9a5d-4b2f-b1f8-2154713cd0aa",
