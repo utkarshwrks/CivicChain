@@ -132,6 +132,7 @@ export function getMyReportsController(req, res) {
         department: dept,
         city:       null,
         noCity:     true,
+        noDepartment: !dept,
         message:    'No city assigned to your account. Contact your administrator.',
       });
     }
@@ -180,19 +181,20 @@ export function assignUserController(req, res) {
     const { address, department, city } = req.body || {};
     if (!address)    return res.status(400).json({ error: 'address is required.' });
     if (!department) return res.status(400).json({ error: 'department is required.' });
-    if (!city)       return res.status(400).json({ error: 'city is required.' });
+    const currentJuris = getUserJurisdiction(address);
+    const targetCity = city || currentJuris?.city || null;
 
-    setUserJurisdiction(address.toLowerCase(), department, city);
-    console.log(`[DEPT] Admin ${req.user?.address} set ${address} → dept=${department}, city=${city}`);
+    setUserJurisdiction(address.toLowerCase(), department, targetCity);
+    console.log(`[DEPT] Admin ${req.user?.address} set ${address} → dept=${department}, city=${targetCity}`);
 
     return res.json({
       success:     true,
       address:     address.toLowerCase(),
       department,
-      city,
+      city:        targetCity,
       displayName: DEPARTMENT_DISPLAY[department] || department,
-      cityName:    getCityName(city),
-      jurisdiction: formatJurisdiction(department, city),
+      cityName:    getCityName(targetCity),
+      jurisdiction: formatJurisdiction(department, targetCity),
       assignedBy:  req.user?.address,
     });
   } catch (e) {

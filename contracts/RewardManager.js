@@ -1,17 +1,6 @@
 /**
- * RewardManager — CrowdPulse v2.1
- *
- * Fixes vs v1:
- *  - Points cannot go below 0
- *  - Owner/authorised-only mutations (same pattern as ReputationManager)
- *  - Claim cooldown to prevent gaming
- *  - claimReward emits event for off-chain indexing
+ * RewardManager — CrowdPulse v2.1 (Style B Object VM format)
  */
-
-if (!state.points)      state.points      = {};  // address → int
-if (!state.claimed)     state.claimed     = {};  // address → { total, lastClaim }
-if (!state.authorised)  state.authorised  = {};
-if (!state.owner)       state.owner       = sender;
 
 const REWARD_POINTS = {
   REPORT_CREATED:  10,
@@ -21,79 +10,116 @@ const REWARD_POINTS = {
 
 const CLAIM_COOLDOWN_MS = 24 * 60 * 60 * 1000; // 1 day
 
-function requireAuthorised() {
-  if (!state.authorised[sender] && sender !== state.owner)
-    throw new Error('Caller not authorised');
-}
+const contract = {
+  methods: {
+    _getOwner() {
+      let owner = getState('owner');
+      if (!owner) {
+        owner = msg.sender;
+        setState('owner', owner);
+      }
+      return owner;
+    },
 
-// ─── Methods ──────────────────────────────────────────────────────────────────
+    _requireOwner() {
+      const owner = this._getOwner();
+      require(msg.sender === owner, 'Only owner');
+    },
 
-if (method === 'authorise') {
-  if (sender !== state.owner) throw new Error('Only owner');
-  if (!args.address) throw new Error('address required');
-  state.authorised[args.address] = true;
-  return { success: true };
-}
+    _requireAuthorised() {
+      const owner = this._getOwner();
+      if (msg.sender === owner) return;
+      const authorised = getState('authorised') || {};
+      require(authorised[msg.sender], 'Caller not authorised');
+    },
 
-if (method === 'addPoints') {
-  requireAuthorised();
-  const { address, points, reason } = args;
-  if (!address)       throw new Error('address required');
-  if (points <= 0)    throw new Error('points must be positive');
+    authorise(args) {
+      this._requireOwner();
+      const { address } = args;
+      require(address, 'address required');
+      const authorised = getState('authorised') || {};
+      authorised[address] = true;
+      setState('authorised', authorised);
+      return { success: true };
+    },
 
-  state.points[address] = (state.points[address] || 0) + Math.floor(points);
-  emit('PointsAdded', { address, points, reason, total: state.points[address] });
-  return { success: true, total: state.points[address] };
-}
+    addPoints(args) {
+      this._requireAuthorised();
+      const { address, points, reason } = args;
+      require(address, 'address required');
+      require(points && points > 0, 'points must be positive');
 
-if (method === 'deductPoints') {
-  requireAuthorised();
-  const { address, points, reason } = args;
-  if (!address)    throw new Error('address required');
-  if (points <= 0) throw new Error('points must be positive');
+      const pointsStore = getState('points') || {};
+      const current = pointsStore[address] || 0;
+      const total = current + Math.floor(points);
+      pointsStore[address] = total;
+      setState('points', pointsStore);
 
-  const current = state.points[address] || 0;
-  state.points[address] = Math.max(0, current - Math.floor(points));
-  emit('PointsDeducted', { address, points, reason, total: state.points[address] });
-  return { success: true, total: state.points[address] };
-}
+      emit('PointsAdded', { address, points, reason, total });
+      return { success: true, total };
+    },
 
-if (method === 'awardForAction') {
-  requireAuthorised();
-  const { address, action } = args;
-  if (!address) throw new Error('address required');
-  const pts = REWARD_POINTS[action];
-  if (!pts) throw new Error(`Unknown action: ${action}`);
+    deductPoints(args) {
+      this._requireAuthorised();
+      const { address, points, reason } = args;
+      require(address, 'address required');
+      require(points && points > 0, 'points must be positive');
 
-  state.points[address] = (state.points[address] || 0) + pts;
-  emit('ActionRewarded', { address, action, points: pts, total: state.points[address] });
-  return { success: true, points: pts, total: state.points[address] };
-}
+      const pointsStore = getState('points') || {};
+      const current = pointsStore[address] || 0;
+      const total = Math.max(0, current - Math.floor(points));
+      pointsStore[address] = total;
+      setState('points', pointsStore);
 
-if (method === 'claimReward') {
-  const address = sender;
-  const now = Date.now();
-  const rec = state.claimed[address] || { total: 0, lastClaim: 0 };
+      emit('PointsDeducted', { address, points, reason, total });
+      return { success: true, total };
+    },
 
-  if (now - rec.lastClaim < CLAIM_COOLDOWN_MS)
-    throw new Error('Claim cooldown active — try again tomorrow');
+    awardForAction(args) {
+      this._requireAuthorised();
+      const { address, action } = args;
+      require(address, 'address required');
+      const pts = REWARD_POINTS[action];
+      require(pts, `Unknown action: ${action}`);
 
-  const balance = state.points[address] || 0;
-  if (balance === 0) throw new Error('No points to claim');
+      const pointsStore = getState('points') || {};
+      const current = pointsStore[address] || 0;
+      const total = current + pts;
+      pointsStore[address] = total;
+      setState('points', pointsStore);
 
-  // Mark as claimed (balance stays — actual token transfer handled off-chain or by chain layer)
-  state.claimed[address] = { total: rec.total + balance, lastClaim: now };
+      emit('ActionRewarded', { address, action, points: pts, total });
+      return { success: true, points: pts, total };
+    },
 
-  emit('RewardClaimed', { address, points: balance, timestamp: now });
-  return { success: true, claimed: balance };
-}
+    claimReward(args) {
+      const address = msg.sender;
+      const now = blockTimestamp;
+      const claimedStore = getState('claimed') || {};
+      const rec = claimedStore[address] || { total: 0, lastClaim: 0 };
 
-if (method === 'getPoints') {
-  const { address } = args;
-  if (!address) throw new Error('address required');
-  return { address, points: state.points[address] || 0 };
-}
+      require(now - rec.lastClaim >= CLAIM_COOLDOWN_MS, 'Claim cooldown active — try again tomorrow');
 
-if (method === 'getRewardTable') {
-  return { rewards: REWARD_POINTS };
-}
+      const pointsStore = getState('points') || {};
+      const balance = pointsStore[address] || 0;
+      require(balance > 0, 'No points to claim');
+
+      claimedStore[address] = { total: rec.total + balance, lastClaim: now };
+      setState('claimed', claimedStore);
+
+      emit('RewardClaimed', { address, points: balance, timestamp: now });
+      return { success: true, claimed: balance };
+    },
+
+    getPoints(args) {
+      const { address } = args;
+      require(address, 'address required');
+      const pointsStore = getState('points') || {};
+      return { address, points: pointsStore[address] || 0 };
+    },
+
+    getRewardTable() {
+      return { rewards: REWARD_POINTS };
+    }
+  }
+};

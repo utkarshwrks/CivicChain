@@ -1,12 +1,5 @@
 /**
- * ReportRegistry — CrowdPulse v2.1
- *
- * Fixes vs v1:
- *  - Input validation on all methods
- *  - createReport returns the full report object (not just id)
- *  - verifyReport / resolveReport check caller permissions
- *  - Emits structured events for indexing
- *  - getReports() returns paginated slice to avoid huge state reads
+ * ReportRegistry — CrowdPulse v2.1 (Style B Object VM format)
  */
 
 const VALID_CATEGORIES = [
@@ -14,142 +7,148 @@ const VALID_CATEGORIES = [
   'GARBAGE', 'WATER_LEAK', 'UNSAFE_BUILDING', 'OTHER',
 ];
 
-const VALID_STATUSES = ['OPEN', 'VERIFIED', 'RESOLVED'];
+const contract = {
+  methods: {
+    createReport(args) {
+      const { description, category, location } = args;
 
-// ─── State init ───────────────────────────────────────────────────────────────
-if (!state.reports)   state.reports   = {};
-if (!state.reportIds) state.reportIds = [];  // ordered list for pagination
-if (!state.count)     state.count     = 0;
+      require(description, 'Missing required field: description');
+      require(category,    'Missing required field: category');
+      require(location,    'Missing required field: location');
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-function requireField(val, name) {
-  if (val === undefined || val === null || val === '')
-    throw new Error(`Missing required field: ${name}`);
-}
+      require(VALID_CATEGORIES.includes(category), `Invalid category. Must be one of: ${VALID_CATEGORIES.join(', ')}`);
+      require(description.length >= 10, 'Description must be at least 10 characters');
+      require(description.length <= 1000, 'Description too long (max 1000 chars)');
 
-// ─── Methods ──────────────────────────────────────────────────────────────────
+      const count = getState('count') || 0;
+      const reports = getState('reports') || {};
+      const reportIds = getState('reportIds') || [];
 
-if (method === 'createReport') {
-  const { description, category, location } = args;
+      const id = `rpt_${blockTimestamp}_${count}`;
+      
+      const locationStr = typeof location === 'string'
+        ? location.slice(0, 200)
+        : JSON.stringify(location).slice(0, 200);
 
-  requireField(description, 'description');
-  requireField(category,    'category');
-  requireField(location,    'location');
+      const report = {
+        id,
+        reporter:    msg.sender,
+        description: description.slice(0, 1000),
+        category,
+        location:    locationStr,
+        status:      'OPEN',
+        createdAt:   blockTimestamp,
+        updatedAt:   blockTimestamp,
+        verifiedBy:  null,
+        resolvedBy:  null,
+        aiCategory:  args.aiCategory  || null,
+        aiConfidence: args.aiConfidence || null,
+      };
 
-  if (!VALID_CATEGORIES.includes(category))
-    throw new Error(`Invalid category. Must be one of: ${VALID_CATEGORIES.join(', ')}`);
+      reports[id] = report;
+      reportIds.push(id);
 
-  if (description.length < 10)
-    throw new Error('Description must be at least 10 characters');
+      setState('reports', reports);
+      setState('reportIds', reportIds);
+      setState('count', count + 1);
 
-  if (description.length > 1000)
-    throw new Error('Description too long (max 1000 chars)');
+      emit('ReportCreated', { id, reporter: msg.sender, category, location: locationStr });
 
-  const id = `rpt_${Date.now()}_${state.count}`;
-  state.count++;
+      return { success: true, report };
+    },
 
-  const report = {
-    id,
-    reporter:    sender,
-    description: description.slice(0, 1000),
-    category,
-    location:    location.slice(0, 200),
-    status:      'OPEN',
-    createdAt:   Date.now(),
-    updatedAt:   Date.now(),
-    verifiedBy:  null,
-    resolvedBy:  null,
-    aiCategory:  args.aiCategory  || null,
-    aiConfidence: args.aiConfidence || null,
-  };
+    verifyReport(args) {
+      const { reportId } = args;
+      require(reportId, 'Missing required field: reportId');
 
-  state.reports[id]  = report;
-  state.reportIds.push(id);
+      const reports = getState('reports') || {};
+      const report = reports[reportId];
+      require(report, `Report not found: ${reportId}`);
+      require(report.status === 'OPEN', 'Report is not OPEN');
+      require(report.reporter !== msg.sender, 'Reporter cannot verify their own report');
 
-  emit('ReportCreated', { id, reporter: sender, category, location });
+      report.status     = 'VERIFIED';
+      report.verifiedBy = msg.sender;
+      report.updatedAt  = blockTimestamp;
 
-  return { success: true, report };
-}
+      reports[reportId] = report;
+      setState('reports', reports);
 
-if (method === 'verifyReport') {
-  const { reportId } = args;
-  requireField(reportId, 'reportId');
+      emit('ReportVerified', { id: reportId, verifiedBy: msg.sender });
 
-  const report = state.reports[reportId];
-  if (!report)           throw new Error(`Report not found: ${reportId}`);
-  if (report.status !== 'OPEN') throw new Error('Report is not OPEN');
-  if (report.reporter === sender) throw new Error('Reporter cannot verify their own report');
+      return { success: true, report };
+    },
 
-  report.status     = 'VERIFIED';
-  report.verifiedBy = sender;
-  report.updatedAt  = Date.now();
+    resolveReport(args) {
+      const { reportId } = args;
+      require(reportId, 'Missing required field: reportId');
 
-  emit('ReportVerified', { id: reportId, verifiedBy: sender });
+      const reports = getState('reports') || {};
+      const report = reports[reportId];
+      require(report, `Report not found: ${reportId}`);
+      require(report.status !== 'RESOLVED', 'Report already resolved');
 
-  return { success: true, report };
-}
+      report.status     = 'RESOLVED';
+      report.resolvedBy = msg.sender;
+      report.updatedAt  = blockTimestamp;
 
-if (method === 'resolveReport') {
-  const { reportId } = args;
-  requireField(reportId, 'reportId');
+      reports[reportId] = report;
+      setState('reports', reports);
 
-  const report = state.reports[reportId];
-  if (!report)                   throw new Error(`Report not found: ${reportId}`);
-  if (report.status === 'RESOLVED') throw new Error('Report already resolved');
+      emit('ReportResolved', { id: reportId, resolvedBy: msg.sender });
 
-  report.status     = 'RESOLVED';
-  report.resolvedBy = sender;
-  report.updatedAt  = Date.now();
+      return { success: true, report };
+    },
 
-  emit('ReportResolved', { id: reportId, resolvedBy: sender });
+    getReport(args) {
+      const { reportId } = args;
+      require(reportId, 'Missing required field: reportId');
+      const reports = getState('reports') || {};
+      const report = reports[reportId];
+      require(report, `Report not found: ${reportId}`);
+      return { report };
+    },
 
-  return { success: true, report };
-}
+    getReports(args) {
+      const page     = Math.max(0, parseInt(args.page  || 0));
+      const pageSize = Math.min(50, parseInt(args.pageSize || 20));
+      const category = args.category || null;
+      const status   = args.status   || null;
+      const reporter = args.reporter || null;
 
-if (method === 'getReport') {
-  const { reportId } = args;
-  requireField(reportId, 'reportId');
-  const report = state.reports[reportId];
-  if (!report) throw new Error(`Report not found: ${reportId}`);
-  return { report };
-}
+      const reports = getState('reports') || {};
+      const reportIds = getState('reportIds') || [];
+      let ids = [...reportIds].reverse(); // newest first
 
-if (method === 'getReports') {
-  // Paginated — default page size 20
-  const page     = Math.max(0, parseInt(args.page  || 0));
-  const pageSize = Math.min(50, parseInt(args.pageSize || 20));
-  const category = args.category || null;
-  const status   = args.status   || null;
-  const reporter = args.reporter || null;
+      if (category || status || reporter) {
+        ids = ids.filter(id => {
+          const r = reports[id];
+          if (!r) return false;
+          if (category && r.category !== category) return false;
+          if (status   && r.status   !== status)   return false;
+          if (reporter && r.reporter !== reporter) return false;
+          return true;
+        });
+      }
 
-  let ids = [...state.reportIds].reverse(); // newest first
+      const total   = ids.length;
+      const slice   = ids.slice(page * pageSize, (page + 1) * pageSize);
+      const resultReports = slice.map(id => reports[id]).filter(Boolean);
 
-  // Filter
-  if (category || status || reporter) {
-    ids = ids.filter(id => {
-      const r = state.reports[id];
-      if (!r) return false;
-      if (category && r.category !== category) return false;
-      if (status   && r.status   !== status)   return false;
-      if (reporter && r.reporter !== reporter) return false;
-      return true;
-    });
+      return { reports: resultReports, total, page, pageSize, pages: Math.ceil(total / pageSize) };
+    },
+
+    getStats() {
+      const reports = getState('reports') || {};
+      const all = Object.values(reports);
+      const byStatus   = {};
+      const byCategory = {};
+      for (const r of all) {
+        byStatus[r.status]     = (byStatus[r.status]     || 0) + 1;
+        byCategory[r.category] = (byCategory[r.category] || 0) + 1;
+      }
+      const count = getState('count') || 0;
+      return { total: count, byStatus, byCategory };
+    }
   }
-
-  const total   = ids.length;
-  const slice   = ids.slice(page * pageSize, (page + 1) * pageSize);
-  const reports = slice.map(id => state.reports[id]).filter(Boolean);
-
-  return { reports, total, page, pageSize, pages: Math.ceil(total / pageSize) };
-}
-
-if (method === 'getStats') {
-  const all    = Object.values(state.reports);
-  const byStatus   = {};
-  const byCategory = {};
-  for (const r of all) {
-    byStatus[r.status]     = (byStatus[r.status]     || 0) + 1;
-    byCategory[r.category] = (byCategory[r.category] || 0) + 1;
-  }
-  return { total: state.count, byStatus, byCategory };
-}
+};
