@@ -21,6 +21,7 @@ import { getPoints } from './services/reward.service.js';
 import { getReputation } from './services/reputation.service.js';
 import { ensureAssigned, enrichReports } from './services/assignment.service.js';
 import { listCitiesController } from './controllers/department.controller.js'; // Phase 14C
+import { rpc, getActiveRpcUrl } from './services/rpc.service.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app       = express();
@@ -53,38 +54,7 @@ function reloadContracts() {
 reloadContracts();
 fs.watchFile(manifestPath, { interval: 3000 }, reloadContracts);
 
-// ─── Safe RPC ─────────────────────────────────────────────────────────────────
-async function safeJson(res, url) {
-  const text = await res.text();
-  if (text.trimStart().startsWith('<'))
-    throw new Error(`SAYMAN returned HTML at ${url} (${res.status})`);
-  try { return JSON.parse(text); }
-  catch { throw new Error(`SAYMAN non-JSON at ${url}: ${text.slice(0, 120)}`); }
-}
-
-async function rpc(endpoint, method = 'GET', body = null, retries = 2) {
-  const url = `${SAYMAN_RPC}${endpoint}`;
-  for (let attempt = 0; attempt <= retries; attempt++) {
-    const ctrl    = new AbortController();
-    const timeout = setTimeout(() => ctrl.abort(), 15_000);
-    try {
-      const res  = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: body ? JSON.stringify(body) : undefined,
-        signal: ctrl.signal,
-      });
-      const data = await safeJson(res, url);
-      if (!res.ok) throw new Error(data.error || data.message || `RPC ${res.status}`);
-      return data;
-    } catch (e) {
-      if (attempt === retries) throw e;
-      await new Promise(r => setTimeout(r, 800 * (attempt + 1)));
-    } finally {
-      clearTimeout(timeout);
-    }
-  }
-}
+// Centralized RPC client imported from rpc.service.js
 
 const CACHE_TTL   = 15_000; // 15s
 
@@ -268,7 +238,7 @@ app.use('/api/departments', departmentRouter);
 app.use('/api/assignments', assignmentRouter);
 
 app.get('/health', (_req, res) => {
-  res.json({ status: 'ok', contracts: CONTRACTS, rpc: SAYMAN_RPC });
+  res.json({ status: 'ok', contracts: CONTRACTS, rpc: getActiveRpcUrl() });
 });
 
 
@@ -449,6 +419,6 @@ app.listen(PORT, () => {
   console.log('║   CrowdPulse Backend  v2.7 (Juris) ║');
   console.log('╚══════════════════════════════════════╝');
   console.log(`  API    → http://localhost:${PORT}`);
-  console.log(`  SAYMAN → ${SAYMAN_RPC}`);
+  console.log(`  SAYMAN → ${getActiveRpcUrl()}`);
   console.log('  Keys   → user-signed (never stored here)\n');
 });
