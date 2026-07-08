@@ -1,12 +1,6 @@
 {
-  "06bf1ed295bb87372e976bd20bffd74e48603b52": {
-    "department": "ROAD_DEPARTMENT",
-    "city": null
-  },
-  "4fe72bc505597d0872acc35bd42adc114ce1e4ae": {
-    "department": "SANITATION_DEPARTMENT",
-    "city": null
-  },
+  "06bf1ed295bb87372e976bd20bffd74e48603b52": "ROAD_DEPARTMENT",
+  "4fe72bc505597d0872acc35bd42adc114ce1e4ae": "SANITATION_DEPARTMENT",
   "3af71b5ef4c8c950e0ff2cc17ace681ff779e3f4": {
     "department": "ROAD_DEPARTMENT",
     "city": "BHOPAL"
@@ -15,10 +9,7 @@
     "department": "SANITATION_DEPARTMENT",
     "city": "INDORE"
   },
-  "f94c82a707484d73ddcc97d3708895d1c2b81c43": {
-    "department": "ROAD_DEPARTMENT",
-    "city": null
-  },
+  "f94c82a707484d73ddcc97d3708895d1c2b81c43": "ROAD_DEPARTMENT",
   "3b148811dd1f348291d98da23fc0d60e4a94a212": {
     "department": "URBAN_DEPARTMENT",
     "city": "BHOPAL"
