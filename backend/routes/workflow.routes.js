@@ -1,5 +1,5 @@
 /**
- * workflow.routes.js — CrowdPulse Workflow Routes  (Phase 14A)
+ * workflow.routes.js — CivicChain Workflow Routes  (Phase 14A)
  *
  * POST /api/workflow/:reportId/verify   → OPEN → VERIFIED      (AUTHORITY | ADMIN)
  * POST /api/workflow/:reportId/start    → VERIFIED → IN_PROGRESS (MUNICIPAL_TEAM | ADMIN)

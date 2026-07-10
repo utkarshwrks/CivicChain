@@ -1,5 +1,5 @@
 /**
- * ai.controller.js — CrowdPulse AI Controller
+ * ai.controller.js — CivicChain AI Controller
  *
  * Handles the incoming multipart/form-data request, delegates to the
  * AI service, and returns a structured JSON response.

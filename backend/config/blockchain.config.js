@@ -1,5 +1,5 @@
 /**
- * blockchain.config.js — CrowdPulse Blockchain Configuration  (Phase 8)
+ * blockchain.config.js — CivicChain Blockchain Configuration  (Phase 8)
  *
  * Loads deployed contract addresses and RPC details from deployed.json.
  * Hot-reloads when deployed.json changes (e.g. after re-deploy).
@@ -12,6 +12,15 @@ import { fileURLToPath } from 'url';
 const __dirname      = path.dirname(fileURLToPath(import.meta.url));
 const MANIFEST_PATH  = path.join(__dirname, '..', '..', 'deployed.json');
 
+function getSingleRpcUrl() {
+  const envRpc = process.env.SAYMAN_RPC;
+  if (envRpc) {
+    const first = envRpc.split(',')[0].trim();
+    if (first) return first;
+  }
+  return null;
+}
+
 function load() {
   try {
     const raw = fs.readFileSync(MANIFEST_PATH, 'utf8');
@@ -19,7 +28,7 @@ function load() {
     return {
       // env SAYMAN_RPC wins over the committed manifest so an operator can
       // repoint the active chain (e.g. railway) without editing deployed.json.
-      rpcUrl:    process.env.SAYMAN_RPC || m.rpcUrl || 'https://sayman.up.railway.app',
+      rpcUrl:    getSingleRpcUrl() || m.rpcUrl || 'https://sayman.up.railway.app',
       deployer:  m.deployer  || null,
       network:   m.network   || 'testnet',
       contracts: {
@@ -31,7 +40,7 @@ function load() {
   } catch (err) {
     console.warn('⚠  blockchain.config: deployed.json not found:', err.message);
     return {
-      rpcUrl:    process.env.SAYMAN_RPC || 'https://sayman.up.railway.app',
+      rpcUrl:    getSingleRpcUrl() || 'https://sayman.up.railway.app',
       deployer:  null,
       network:   'unknown',
       contracts: { ReportRegistry: null, ReputationManager: null, RewardManager: null },

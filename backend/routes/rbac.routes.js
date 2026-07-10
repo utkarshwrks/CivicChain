@@ -1,5 +1,5 @@
 /**
- * rbac.routes.js — CrowdPulse RBAC Routes  (Phase 14A)
+ * rbac.routes.js — CivicChain RBAC Routes  (Phase 14A)
  *
  * GET  /api/rbac/role/:address  →  { address, role }           (authenticated)
  * GET  /api/rbac/roles          →  { roles: {...}, count }     (ADMIN only)

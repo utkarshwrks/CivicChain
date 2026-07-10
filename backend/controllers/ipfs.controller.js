@@ -1,5 +1,5 @@
 /**
- * ipfs.controller.js — CrowdPulse IPFS Controller  (Phase 6)
+ * ipfs.controller.js — CivicChain IPFS Controller  (Phase 6)
  *
  * Receives the multer-parsed image file, delegates to the IPFS service,
  * and sends a clean JSON response.

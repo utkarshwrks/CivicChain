@@ -1,5 +1,5 @@
 /**
- * report.service.js — CrowdPulse Unified Report Processing Service
+ * report.service.js — CivicChain Unified Report Processing Service
  *
  * Phase 7:  processReport   — AI + IPFS in parallel
  * Phase 8:  createFullReport — AI + IPFS + Blockchain (full pipeline)
@@ -30,7 +30,7 @@ export async function processReport(buffer, mimeType, filename, meta = {}) {
   const [aiResult, ipfsResult] = await Promise.allSettled([
     analyzeImage(buffer, mimeType),
     uploadToIPFS(buffer, mimeType, filename, {
-      source:   'CrowdPulse-report',
+      source:   'CivicChain-report',
       reporter: meta.reporter || 'unknown',
       location: meta.location || 'unknown',
     }),
@@ -144,7 +144,7 @@ export async function createFullReport(buffer, mimeType, filename, meta = {}) {
   let evidence;
   try {
     evidence = await uploadToIPFS(buffer, mimeType, filename, {
-      source:   'CrowdPulse-report',
+      source:   'CivicChain-report',
       reportId,
       reporter: meta.reporter || 'unknown',
       location: meta.location || 'unknown',
@@ -274,7 +274,7 @@ export async function prepareReport(buffer, mimeType, filename, meta = {}) {
   let evidence;
   try {
     evidence = await uploadToIPFS(buffer, mimeType, filename, {
-      source:   'CrowdPulse-report',
+      source:   'CivicChain-report',
       reportId,
       reporter: meta.reporter || 'unknown',
       location: meta.location || 'unknown',

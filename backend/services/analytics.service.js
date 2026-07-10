@@ -1,5 +1,5 @@
 /**
- * analytics.service.js — CrowdPulse Civic Analytics Engine  (Phase 12)
+ * analytics.service.js — CivicChain Civic Analytics Engine  (Phase 12)
  *
  * Pure aggregation layer — no AI calls, no blockchain writes.
  * Transforms raw report data into civic intelligence.

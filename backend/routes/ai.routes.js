@@ -1,5 +1,5 @@
 /**
- * ai.routes.js — CrowdPulse AI Routes
+ * ai.routes.js — CivicChain AI Routes
  *
  * Mounts multer middleware for image upload and registers the
  * POST /api/ai/analyze endpoint.

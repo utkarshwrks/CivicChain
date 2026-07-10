@@ -1,5 +1,5 @@
 /**
- * ReputationManager — CrowdPulse v2.1 (Style B Object VM format)
+ * ReputationManager — CivicChain v2.1 (Style B Object VM format)
  */
 
 const LEVELS = [

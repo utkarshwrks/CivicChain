@@ -21,7 +21,7 @@
     "reportId": "test-road-001",
     "department": "ROAD_DEPARTMENT",
     "overriddenBy": "750f00e7bdaee4ae0c1cc64191b4eb9f072a51ae",
-    "assignedAt": 1783550944972,
+    "assignedAt": 1783677585539,
     "status": "ASSIGNED",
     "city": null
   },
@@ -29,7 +29,7 @@
     "reportId": "test-garbage-001",
     "department": "SANITATION_DEPARTMENT",
     "overriddenBy": "750f00e7bdaee4ae0c1cc64191b4eb9f072a51ae",
-    "assignedAt": 1783550944980,
+    "assignedAt": 1783677585546,
     "status": "ASSIGNED",
     "city": null
   },

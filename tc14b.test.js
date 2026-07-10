@@ -32,7 +32,7 @@ function makeWallet(pk) {
 }
 
 function signMsg(kp, addr, nonce) {
-  const hash = sha256(`CrowdPulse:${addr}:${nonce}`);
+  const hash = sha256(`CivicChain:${addr}:${nonce}`);
   const sig  = kp.sign(hash);
   return { r: sig.r.toString('hex'), s: sig.s.toString('hex') };
 }

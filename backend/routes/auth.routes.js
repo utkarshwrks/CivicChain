@@ -1,5 +1,5 @@
 /**
- * auth.routes.js — CrowdPulse Auth Routes  (Phase 14A)
+ * auth.routes.js — CivicChain Auth Routes  (Phase 14A)
  *
  * GET  /api/auth/nonce/:address  →  { nonce, expiresAt }     (public)
  * POST /api/auth/login           →  { token, address, role } (public)

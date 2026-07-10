@@ -1,5 +1,5 @@
 /**
- * ai.service.js — CrowdPulse AI Vision Service
+ * ai.service.js — CivicChain AI Vision Service
  *
  * Sends an uploaded image to Gemini 2.5 Flash Vision and returns a
  * structured JSON object classifying whether the image depicts a civic
@@ -25,7 +25,7 @@ const VALID_CATEGORIES = [
 const VALID_SEVERITIES = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'];
 
 /** Strict prompt instructing Gemini to output only parseable JSON. */
-const SYSTEM_PROMPT = `You are an AI assistant integrated into CrowdPulse, a civic issue reporting platform.
+const SYSTEM_PROMPT = `You are an AI assistant integrated into CivicChain, a civic issue reporting platform.
 
 Analyze the provided image and determine if it depicts a civic issue or public infrastructure problem.
 

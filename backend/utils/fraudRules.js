@@ -1,5 +1,5 @@
 /**
- * fraudRules.js — CrowdPulse Fraud Scoring Rules  (Phase 9)
+ * fraudRules.js — CivicChain Fraud Scoring Rules  (Phase 9)
  *
  * Pure functions that evaluate an AI analysis result and return
  * a numeric fraud score with reasons. No side effects, no I/O.

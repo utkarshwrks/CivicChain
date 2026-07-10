@@ -1,5 +1,5 @@
 /**
- * workflow.service.js — CrowdPulse Authority Workflow Engine  (Phase 13)
+ * workflow.service.js — CivicChain Authority Workflow Engine  (Phase 13)
  *
  * Manages the complete report lifecycle:
  *   OPEN → VERIFIED → IN_PROGRESS → RESOLVED
@@ -146,8 +146,8 @@ async function contractCall(contractAddress, method, args) {
   const gasPrice  = GAS_CONFIG.GAS_PRICE;
 
   const data = {
-    from:     sender,
-    contract: contractAddress,
+    from:            sender,
+    contractAddress: contractAddress,
     method,
     args,
     timestamp,

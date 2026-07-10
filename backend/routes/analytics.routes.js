@@ -1,5 +1,5 @@
 /**
- * analytics.routes.js — CrowdPulse Analytics Routes  (Phase 12)
+ * analytics.routes.js — CivicChain Analytics Routes  (Phase 12)
  *
  * GET /api/analytics/overview
  * GET /api/analytics/categories
