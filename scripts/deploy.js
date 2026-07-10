@@ -20,12 +20,15 @@ const NETWORKS = {
 const argv    = process.argv.slice(2);
 const netIdx  = argv.indexOf('--network');
 const network = netIdx !== -1 ? argv[netIdx + 1] : 'local';
-const RPC_URL = process.env.SAYMAN_RPC_URL || process.env.SAYMAN_RPC || NETWORKS[network];
+const RPC_RAW = process.env.SAYMAN_RPC_URL || process.env.SAYMAN_RPC || NETWORKS[network];
 
-if (!RPC_URL) {
+if (!RPC_RAW) {
   console.error(`❌ Unknown network: "${network}". Use: local | testnet | public-testnet | mainnet`);
   process.exit(1);
 }
+
+const RPC_URLS = RPC_RAW.split(',').map(s => s.trim()).filter(Boolean);
+let activeRpcUrl = RPC_URLS[0];
 
 const DEFAULT_KEY = crypto.createHash('sha256').update('crowdpulse-dev-deployer-2024').digest('hex');
 const PRIVATE_KEY = process.env.DEPLOYER_PRIVATE_KEY || DEFAULT_KEY;
@@ -40,26 +43,47 @@ try {
   process.exit(1);
 }
 
+async function rpcCall(endpoint, options = {}) {
+  let lastError;
+  const startIdx = Math.max(0, RPC_URLS.indexOf(activeRpcUrl));
+  for (let i = 0; i < RPC_URLS.length; i++) {
+    const idx = (startIdx + i) % RPC_URLS.length;
+    const baseUrl = RPC_URLS[idx];
+    try {
+      const res = await fetch(`${baseUrl}${endpoint}`, options);
+      const text = await res.text();
+      let data;
+      try { data = JSON.parse(text); } catch { data = { error: text }; }
+      if (!res.ok) {
+        throw new Error(data.error || data.message || `HTTP ${res.status}`);
+      }
+      activeRpcUrl = baseUrl;
+      return data;
+    } catch (err) {
+      lastError = err;
+      if (
+        err.message.includes('failed —') ||
+        err.message.includes('Requirement failed') ||
+        err.message.includes('not found') ||
+        err.message.includes('insufficient balance')
+      ) {
+        throw err;
+      }
+    }
+  }
+  throw new Error(lastError ? lastError.message : 'No RPC nodes available');
+}
+
 async function rpcGet(endpoint) {
-  const res  = await fetch(`${RPC_URL}${endpoint}`);
-  const text = await res.text();
-  let data;
-  try { data = JSON.parse(text); } catch { data = { error: text }; }
-  if (!res.ok) throw new Error(data.error || data.message || `HTTP ${res.status}`);
-  return data;
+  return rpcCall(endpoint);
 }
 
 async function rpcPost(endpoint, body) {
-  const res  = await fetch(`${RPC_URL}${endpoint}`, {
+  return rpcCall(endpoint, {
     method:  'POST',
     headers: { 'Content-Type': 'application/json' },
     body:    JSON.stringify(body)
   });
-  const text = await res.text();
-  let data;
-  try { data = JSON.parse(text); } catch { data = { error: text }; }
-  if (!res.ok) throw new Error(data.error || data.message || `HTTP ${res.status}`);
-  return data;
 }
 
 async function getAddressInfo() {
@@ -140,7 +164,7 @@ async function main() {
   console.log('╚══════════════════════════════════════════╝');
   console.log('');
   console.log(`  Network  : ${network}`);
-  console.log(`  RPC      : ${RPC_URL}`);
+  console.log(`  RPC      : ${RPC_URLS.join(', ')}`);
   console.log(`  Deployer : ${address}`);
 
   let chainHeight = 0;
@@ -155,10 +179,23 @@ async function main() {
 
   let balance = await getBalance();
   console.log(`  Balance  : ${balance} SAYM`);
-  
-  // ─── SKIP BALANCE CHECK - JUST PROCEED ──────────────────────────────────
-  console.log(`  ⚠️  Attempting deploy with current balance (need ~10 SAYM)`);
-  console.log(`  💡 If balance is low, deploy may fail with "insufficient balance"`);
+
+  const minRequiredBalance = 1000000; // 1M SAYM to cover gas limits of ~750k
+  if (balance < minRequiredBalance) {
+    process.stdout.write('  Faucet   : balance is low, requesting SAYM... ');
+    const r = await requestFaucet();
+    if (r && !r.error) {
+      await waitForBlock(chainHeight, 20000);
+      chainHeight = (await rpcGet('/api/stats')).blocks || chainHeight;
+      balance = await getBalance();
+      console.log(`funded ✅ (balance: ${balance} SAYM)`);
+    } else {
+      console.log(`failed ⚠ (${r?.error || 'unknown'})`);
+      console.log(`\n  Fund this address manually if needed:\n  ${address}\n`);
+    }
+  } else {
+    console.log(`  Balance  : ✅ sufficient`);
+  }
 
   console.log('');
 
@@ -240,8 +277,8 @@ async function main() {
     console.log('  ❌ No contracts deployed.');
     console.log('');
     console.log('  Debug:');
-    console.log(`  curl ${RPC_URL}/api/address/${address}`);
-    console.log(`  curl ${RPC_URL}/api/contracts`);
+    console.log(`  curl ${activeRpcUrl}/api/address/${address}`);
+    console.log(`  curl ${activeRpcUrl}/api/contracts`);
     process.exit(1);
   }
 
@@ -251,7 +288,7 @@ async function main() {
 
   const manifest = {
     network,
-    rpcUrl:     RPC_URL,
+    rpcUrl:     activeRpcUrl,
     deployer:   address,
     deployedAt: new Date().toISOString(),
     contracts:  deployed
@@ -264,7 +301,7 @@ async function main() {
   console.log('  📄 deployed.json saved');
   console.log('');
   console.log('  Verify live:');
-  console.log(`  curl ${RPC_URL}/api/contracts`);
+  console.log(`  curl ${activeRpcUrl}/api/contracts`);
   console.log('');
   console.log('  Next:');
   console.log('  1. cd backend && node index.js');

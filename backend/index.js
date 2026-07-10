@@ -35,8 +35,6 @@ app.use('/api/', rateLimit({
   standardHeaders: true, legacyHeaders: false,
   message: { error: 'Rate limit exceeded.' },
 }));
-
-const SAYMAN_RPC = process.env.SAYMAN_RPC || 'https://sayman.up.railway.app';
 const PORT       = process.env.PORT       || 3001;
 
 let CONTRACTS = { ReportRegistry: '', ReputationManager: '', RewardManager: '' };
@@ -111,7 +109,7 @@ async function scanReports() {
             };
           } else if (
             tx.type === 'CONTRACT_CALL' && tx.data &&
-            tx.data.contract === CONTRACTS.ReportRegistry &&
+            (tx.data.contract === CONTRACTS.ReportRegistry || tx.data.contractAddress === CONTRACTS.ReportRegistry) &&
             tx.data.method === 'createReport'
           ) {
             const a = tx.data.args || {};

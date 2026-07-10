@@ -1,11 +1,11 @@
 {
-  "network": "local",
+  "network": "testnet",
   "rpcUrl": "https://sayman.onrender.com",
   "deployer": "7580777ca52a6ad5dc8cf864f1b90de3c21a4210",
-  "deployedAt": "2026-07-08T22:44:55.742Z",
+  "deployedAt": "2026-07-10T09:58:50.216Z",
   "contracts": {
-    "ReportRegistry": "b7a1598fd2d18bdc71f52f9cb7e4f2d8ce7757e7",
-    "ReputationManager": "0bd39b031e234fd217262560bc26e484d506d954",
-    "RewardManager": "bada99d2fdb05ce19392a544015bfa467af629b1"
+    "ReportRegistry": "0a320cba751582e4c809d349b195cb1eb117e939",
+    "ReputationManager": "006df8c8f493c740800eea8a349f01393515dd7b",
+    "RewardManager": "ad1f140f56b7909122b46c6beeae7418274344c8"
   }
 }

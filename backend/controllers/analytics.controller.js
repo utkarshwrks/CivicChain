@@ -22,9 +22,9 @@ import {
   getTrends,
   generateInsights,
 } from '../services/analytics.service.js';
+import { rpc } from '../services/rpc.service.js';
 
 const PORT      = process.env.PORT       || 3001;
-const SAYMAN_RPC = process.env.SAYMAN_RPC || 'https://sayman.up.railway.app';
 
 /**
  * Fetch all REPORT_CREATE transactions from the deployer's address on SAYMAN.
@@ -45,8 +45,8 @@ async function fetchReports() {
     const health      = await deployedRes.json();
 
     // Get deployer address from deployed.json (loaded via config)
-    const addrRes = await fetch(`${SAYMAN_RPC}/api/address/${health.contracts?.deployer || '750f00e7bdaee4ae0c1cc64191b4eb9f072a51ae'}`);
-    const addrData = await addrRes.json();
+    const deployerAddr = health.contracts?.deployer || '750f00e7bdaee4ae0c1cc64191b4eb9f072a51ae';
+    const addrData = await rpc(`/api/address/${deployerAddr}`);
     const txs = addrData.transactions || [];
 
     // Extract REPORT_CREATE transactions

@@ -110,10 +110,10 @@ export async function createReport({
     stateBefore = null;
   }
 
-  // ── 3. Build REPORT_CREATE payload — EXACTLY like frontend buildReportTx ──
-  const type      = 'REPORT_CREATE';
+  // ── 3. Build CONTRACT_CALL payload ──
+  const type      = 'CONTRACT_CALL';
   const timestamp = Date.now();
-  const gasLimit  = 10;    // frontend default — gasUsed=6 on chain
+  const gasLimit  = 100000;    // contract call gas
   const gasPrice  = 1;
 
   // Normalise location to string
@@ -121,14 +121,20 @@ export async function createReport({
     ? location
     : (location ? JSON.stringify(location) : '');
 
-  // Flat data — mirrors frontend/src/utils/crypto.js:46-53
+  // CONTRACT_CALL data structure
   const data = {
-    from:         sender,
-    category:     category    || 'OTHER',
-    location:     locationStr || {},
-    severity:     severity    || 'MEDIUM',
-    evidenceHash: cid         || null,
-    description:  description || `AI-detected civic issue: ${category}`,
+    from:            sender,
+    contractAddress: blockchainConfig.contracts.ReportRegistry,
+    method:          'createReport',
+    args: {
+      description:  description || `AI-detected civic issue: ${category}`,
+      category:     category    || 'OTHER',
+      location:     locationStr || {},
+      aiCategory:   category    || null,
+      aiConfidence: confidence  || null,
+      severity:     severity    || 'MEDIUM',
+      evidenceHash: cid         || null,
+    },
     timestamp,
   };
 
@@ -200,9 +206,9 @@ export async function createReport({
     t => t.id === txId || t.hash === txId
   ) ?? false;
 
-  // Check for REPORT_CREATE txs in history
+  // Check for createReport txs in history
   const reportTxs = (stateAfter?.transactions ?? []).filter(
-    t => t.type === 'REPORT_CREATE'
+    t => t.type === 'CONTRACT_CALL' && (t.data?.method === 'createReport' || t.data?.args?.category)
   );
 
   const broadcastAccepted = !!txId;

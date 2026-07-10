@@ -5,7 +5,7 @@ import {
   ShieldCheck, Coins, Star, MapPin, Building2, Boxes, Sparkles, ExternalLink,
 } from 'lucide-react';
 import { api } from '../utils/api.js';
-import { buildReportTx } from '../utils/crypto.js';
+import { buildContractCallTx } from '../utils/crypto.js';
 import { useWallet } from '../hooks/useWallet.jsx';
 import { CountUp } from '../components/ui.jsx';
 
@@ -92,20 +92,29 @@ export default function SubmitPage() {
         return;
       }
 
-      // ── 2. Build + sign REPORT_CREATE with the signed-in user's wallet ──────
+      // ── 2. Build + sign CONTRACT_CALL with the signed-in user's wallet ──────
       setStep(4); // Blockchain
       const { nonce } = await api.nonce(wallet.address);
+      const healthData = await api.health();
+      const reportRegistryAddr = healthData.contracts?.ReportRegistry || '8052b5b7a13cb7f5587d11832f6b8ac2b511fb00';
       const locationStr = typeof prep.location === 'string'
         ? prep.location
         : JSON.stringify(prep.location || {});
-      const tx = await buildReportTx({
+      const tx = await buildContractCallTx({
         wallet,
         nonce,
-        category:     prep.analysis?.category,
-        severity:     prep.analysis?.severity,
-        description:  prep.description,
-        location:     locationStr,
-        evidenceHash: prep.evidence?.cid,
+        contractAddress: reportRegistryAddr,
+        method:          'createReport',
+        args: {
+          description:  prep.description,
+          category:     prep.analysis?.category,
+          location:     locationStr,
+          aiCategory:   prep.analysis?.category || null,
+          aiConfidence: prep.analysis?.confidence || null,
+          severity:     prep.analysis?.severity || 'MEDIUM',
+          evidenceHash: prep.evidence?.cid || null,
+        },
+        gasLimit: 100000,
       });
 
       // ── 3. Broadcast — gas is paid from the user's own wallet ──────────────

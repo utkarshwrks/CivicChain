@@ -146,8 +146,8 @@ async function contractCall(contractAddress, method, args) {
   const gasPrice  = GAS_CONFIG.GAS_PRICE;
 
   const data = {
-    from:     sender,
-    contract: contractAddress,
+    from:            sender,
+    contractAddress: contractAddress,
     method,
     args,
     timestamp,
