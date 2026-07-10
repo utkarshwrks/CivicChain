@@ -1,5 +1,5 @@
 /**
- * ipfs.routes.js — CrowdPulse IPFS Routes  (Phase 6)
+ * ipfs.routes.js — CivicChain IPFS Routes  (Phase 6)
  *
  * Registers the POST /api/ipfs/upload endpoint.
  * Multer is configured with memoryStorage — no temp files on disk.

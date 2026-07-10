@@ -1,5 +1,5 @@
 /**
- * rbac.service.js — CrowdPulse Role-Based Access Control  (Phase 14A)
+ * rbac.service.js — CivicChain Role-Based Access Control  (Phase 14A)
  *
  * Manages address → role mappings, persisted to backend/data/roles.json.
  * On first startup, auto-seeds the deployer address as ADMIN.

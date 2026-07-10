@@ -1,5 +1,5 @@
 /**
- * auth.middleware.js — CrowdPulse Auth & RBAC Middleware  (Phase 14A)
+ * auth.middleware.js — CivicChain Auth & RBAC Middleware  (Phase 14A)
  *
  * authenticate    → verifies JWT from Authorization: Bearer <token>
  *                   attaches decoded { address, role } to req.user

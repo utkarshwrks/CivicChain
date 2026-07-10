@@ -1,5 +1,5 @@
 /**
- * department.routes.js — CrowdPulse Department Routes  (Phase 14B + 14C)
+ * department.routes.js — CivicChain Department Routes  (Phase 14B + 14C)
  *
  * GET  /api/departments                →  list all departments + stats       (public)
  * GET  /api/departments/me             →  calling user's department + city   (authenticated)

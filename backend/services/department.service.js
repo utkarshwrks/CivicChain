@@ -1,5 +1,5 @@
 /**
- * department.service.js — CrowdPulse Department Management  (Phase 14B)
+ * department.service.js — CivicChain Department Management  (Phase 14B)
  *
  * - Maintains category → department routing table
  * - Manages user → department assignments (persisted to user-departments.json)

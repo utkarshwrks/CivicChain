@@ -1,4 +1,4 @@
-# CrowdPulse — In-Depth Project Documentation
+# CivicChain — In-Depth Project Documentation
 
 > **CivicChain** — Decentralised Civic Intelligence on the SAYMAN Blockchain
 >
@@ -12,7 +12,7 @@
 
 ## Table of Contents
 
-1. [What CrowdPulse Is](#1-what-crowdpulse-is)
+1. [What CivicChain Is](#1-what-civicchain-is)
 2. [How It Works — End to End](#2-how-it-works--end-to-end)
 3. [System Architecture](#3-system-architecture)
 4. [The SAYMAN Blockchain & Smart Contracts](#4-the-sayman-blockchain--smart-contracts)
@@ -28,9 +28,9 @@
 
 ---
 
-## 1. What CrowdPulse Is
+## 1. What CivicChain Is
 
-CrowdPulse (branded **CivicChain** in the UI) is a **decentralised civic-issue reporting platform**. Citizens photograph public problems — potholes, floods, garbage, broken streetlights, water leaks, unsafe buildings — and submit them. The platform then:
+CivicChain (branded **CivicChain** in the UI) is a **decentralised civic-issue reporting platform**. Citizens photograph public problems — potholes, floods, garbage, broken streetlights, water leaks, unsafe buildings — and submit them. The platform then:
 
 1. **Verifies the photo with AI** (Google Gemini Vision) — confirming it really is a civic issue and classifying its category and severity.
 2. **Screens it** for fraud and duplicates before committing any storage or gas.
@@ -315,7 +315,7 @@ Bhopal, Indore, Jabalpur, Gwalior, Ujjain (MP), Raipur (CG), Nagpur, Pune (MH), 
 - **ui.jsx** — shared primitives: `CountUp`, `Donut`, `CopyButton`, `LiveBadge`, `Skeleton`.
 - **hooks/useWallet.jsx** — the **WalletProvider** context: `{ wallet, balance, reputation, rewards, role, department, city, token, isAuthenticated }` plus `connect`, `disconnect`, `refresh`, `authFlow`. Restores wallet/token from localStorage (`cp_wallet_v2`, `cp_token_v1`), validates via `/api/auth/me`, auto-refreshes every 15s.
 - **utils/api.js** — fetch wrapper; base URL from `VITE_API_URL` (defaults to same origin); injects `Authorization: Bearer <JWT>`.
-- **utils/crypto.js** — `generateWallet()`, `importWallet()`, and `signAuthMessage()` (signs `CrowdPulse:{address}:{nonce}`).
+- **utils/crypto.js** — `generateWallet()`, `importWallet()`, and `signAuthMessage()` (signs `CivicChain:{address}:{nonce}`).
 
 ### Branding & styling
 
@@ -330,7 +330,7 @@ CivicChain dark theme via CSS custom properties — saffron `#FF9A3A` + green `#
 ```
 1. Browser generates/imports a secp256k1 wallet (private key never leaves the client).
 2. GET /api/auth/nonce/{address}          → server returns a one-time nonce (5-min TTL).
-3. Browser signs sha256("CrowdPulse:{address}:{nonce}") → { r, s }.
+3. Browser signs sha256("CivicChain:{address}:{nonce}") → { r, s }.
 4. POST /api/auth/login { address, publicKey, nonce, signature }
        → server verifies the signature, confirms the address derives from the public key,
          looks up the role, and issues a JWT (24h).
@@ -500,7 +500,7 @@ The project was built in incremental phases (reflected in code comments and the 
 ## 13. Repository Map
 
 ```
-CrowdPulse/
+CivicChain/
 ├── backend/
 │   ├── index.js                 # Express app, built-in routes, report scanner
 │   ├── config/blockchain.config.js   # reads & hot-reloads deployed.json

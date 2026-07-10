@@ -33,11 +33,11 @@ export async function importWallet(privateKey) {
 
 /**
  * Sign the authentication challenge message.
- * Message: sha256("CrowdPulse:" + address.toLowerCase() + ":" + nonce)
+ * Message: sha256("CivicChain:" + address.toLowerCase() + ":" + nonce)
  * Returns { r, s } — both hex strings, matching what auth.service.js verifies.
  */
 export async function signAuthMessage(privateKey, address, nonce) {
-  const message = `CrowdPulse:${address.toLowerCase()}:${nonce}`;
+  const message = `CivicChain:${address.toLowerCase()}:${nonce}`;
   const hash    = await sha256Hex(message);
   const kp      = ec.keyFromPrivate(privateKey, 'hex');
   const sig     = kp.sign(hash);

@@ -1,5 +1,5 @@
 /**
- * workflow.service.js — CrowdPulse Authority Workflow Engine  (Phase 13)
+ * workflow.service.js — CivicChain Authority Workflow Engine  (Phase 13)
  *
  * Manages the complete report lifecycle:
  *   OPEN → VERIFIED → IN_PROGRESS → RESOLVED

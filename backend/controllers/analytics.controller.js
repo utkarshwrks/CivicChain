@@ -1,5 +1,5 @@
 /**
- * analytics.controller.js — CrowdPulse Analytics Controller  (Phase 12)
+ * analytics.controller.js — CivicChain Analytics Controller  (Phase 12)
  *
  * GET /api/analytics/overview
  * GET /api/analytics/categories

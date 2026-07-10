@@ -1,5 +1,5 @@
 /**
- * assignment.service.js — CrowdPulse Report-Department Assignment  (Phase 14B + 14C)
+ * assignment.service.js — CivicChain Report-Department Assignment  (Phase 14B + 14C)
  *
  * Auto-assigns reports to departments AND cities based on report content.
  * Persists assignments to backend/data/assignments.json.

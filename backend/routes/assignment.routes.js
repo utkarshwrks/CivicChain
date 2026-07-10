@@ -1,5 +1,5 @@
 /**
- * assignment.routes.js — CrowdPulse Assignment Routes  (Phase 14B)
+ * assignment.routes.js — CivicChain Assignment Routes  (Phase 14B)
  *
  * GET  /api/assignments                →  list all assignments              (ADMIN)
  * GET  /api/assignments/:reportId      →  single assignment                  (authenticated)

@@ -1,5 +1,5 @@
 /**
- * auth.service.js — CrowdPulse Wallet Authentication  (Phase 14A)
+ * auth.service.js — CivicChain Wallet Authentication  (Phase 14A)
  *
  * Challenge-response authentication using secp256k1 wallet keys.
  *
@@ -67,7 +67,7 @@ export function generateNonce(address) {
  * @param {string} params.address   — claimed wallet address
  * @param {string} params.publicKey — full secp256k1 public key (hex, compressed or uncompressed)
  * @param {string} params.nonce     — nonce received from generateNonce
- * @param {{ r: string, s: string }} params.signature — secp256k1 signature of sha256("CrowdPulse:ADDRESS:NONCE")
+ * @param {{ r: string, s: string }} params.signature — secp256k1 signature of sha256("CivicChain:ADDRESS:NONCE")
  *
  * @returns {{ token: string, address: string, role: string }}
  * @throws {Error} on any verification failure
@@ -93,8 +93,8 @@ export function verifyLogin({ address, publicKey, nonce, signature }) {
 
   // ── 3. Reconstruct the signed message hash ───────────────────────────────
   //    Message MUST match exactly what the frontend signed:
-  //    sha256("CrowdPulse:" + address + ":" + nonce)
-  const message = `CrowdPulse:${addrLower}:${nonce}`;
+  //    sha256("CivicChain:" + address + ":" + nonce)
+  const message = `CivicChain:${addrLower}:${nonce}`;
   const hash    = sha256(message);
 
   // ── 4. Verify elliptic signature ─────────────────────────────────────────

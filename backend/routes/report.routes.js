@@ -1,5 +1,5 @@
 /**
- * report.routes.js — CrowdPulse Report Routes  (Phase 7 + Phase 8)
+ * report.routes.js — CivicChain Report Routes  (Phase 7 + Phase 8)
  *
  * POST /api/report/process — AI + IPFS pipeline  (Phase 7)
  * POST /api/report/create  — AI + IPFS + Blockchain  (Phase 8)

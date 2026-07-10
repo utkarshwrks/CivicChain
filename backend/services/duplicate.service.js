@@ -1,5 +1,5 @@
 /**
- * duplicate.service.js — CrowdPulse Duplicate Detection Service  (Phase 11)
+ * duplicate.service.js — CivicChain Duplicate Detection Service  (Phase 11)
  *
  * Prevents duplicate report submissions and reward farming.
  *

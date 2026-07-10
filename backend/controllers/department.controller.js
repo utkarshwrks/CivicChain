@@ -1,5 +1,5 @@
 /**
- * department.controller.js — CrowdPulse Department Controllers  (Phase 14B + 14C)
+ * department.controller.js — CivicChain Department Controllers  (Phase 14B + 14C)
  *
  * GET  /api/departments                →  listDepartmentsController
  * GET  /api/cities                     →  listCitiesController          (Phase 14C)

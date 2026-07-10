@@ -1,5 +1,5 @@
 /**
- * jurisdiction.service.js — CrowdPulse Jurisdiction Layer  (Phase 14C)
+ * jurisdiction.service.js — CivicChain Jurisdiction Layer  (Phase 14C)
  *
  * Manages the city layer and user jurisdiction assignments.
  * A jurisdiction = { department, city } pair.

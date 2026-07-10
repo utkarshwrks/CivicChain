@@ -1,5 +1,5 @@
 /**
- * RewardManager — CrowdPulse v2.1 (Style B Object VM format)
+ * RewardManager — CivicChain v2.1 (Style B Object VM format)
  */
 
 const REWARD_POINTS = {

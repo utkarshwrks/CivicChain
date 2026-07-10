@@ -18,7 +18,7 @@ async function run() {
   };
 
   const metadata = {
-    source: 'CrowdPulse-report',
+    source: 'CivicChain-report',
     reportId: 'RP-TEST-12345',
     reporter: '0x1234567890123456789012345678901234567890',
     location: locationObj

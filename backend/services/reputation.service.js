@@ -1,5 +1,5 @@
 /**
- * reputation.service.js — CrowdPulse Reputation Service  (Phase 10)
+ * reputation.service.js — CivicChain Reputation Service  (Phase 10)
  *
  * Awards reputation after successful report creation.
  *

@@ -1,5 +1,5 @@
 /**
- * fraud.service.js — CrowdPulse Fraud Detection Service  (Phase 9)
+ * fraud.service.js — CivicChain Fraud Detection Service  (Phase 9)
  *
  * Evaluates AI analysis results against fraud rules.
  * Returns a decision: allow / warning / block.

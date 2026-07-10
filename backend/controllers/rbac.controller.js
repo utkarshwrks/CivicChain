@@ -1,5 +1,5 @@
 /**
- * rbac.controller.js — CrowdPulse RBAC Controllers  (Phase 14A + 14C)
+ * rbac.controller.js — CivicChain RBAC Controllers  (Phase 14A + 14C)
  *
  * GET  /api/rbac/role/:address  →  { address, role }                    (authenticated)
  * GET  /api/rbac/roles          →  { roles: {...} }                     (ADMIN only)

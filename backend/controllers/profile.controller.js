@@ -1,5 +1,5 @@
 /**
- * profile.controller.js — CrowdPulse Profile Controller  (Phase 10)
+ * profile.controller.js — CivicChain Profile Controller  (Phase 10)
  *
  * GET /api/profile/:address/points      → reward points
  * GET /api/profile/:address/reputation  → reputation score + level

@@ -45,7 +45,7 @@ const nr = await fetch(`${BASE}/api/auth/nonce/${addr}`).then(r => r.json());
 if (nr.nonce !== undefined) pass('GET /api/auth/nonce/:address', `nonce=${nr.nonce}`);
 else fail('nonce endpoint', JSON.stringify(nr));
 
-const msg  = `CrowdPulse:${addr}:${nr.nonce}`;
+const msg  = `CivicChain:${addr}:${nr.nonce}`;
 const sig  = kp.sign(sha256(msg));
 const lr = await fetch(`${BASE}/api/auth/login`, {
   method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -145,7 +145,7 @@ section('7. MANUAL TEST INSTRUCTIONS');
 console.log(`
 HOW TO ACCESS ADMIN DASHBOARD:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-1. Open CrowdPulse in browser (http://localhost:5173 or wherever frontend runs)
+1. Open CivicChain in browser (http://localhost:5173 or wherever frontend runs)
 2. Click "Connect Wallet"
 3. Click "Import Key" tab
 4. Paste this private key:

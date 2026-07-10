@@ -1,5 +1,5 @@
 /**
- * blockchain.config.js — CrowdPulse Blockchain Configuration  (Phase 8)
+ * blockchain.config.js — CivicChain Blockchain Configuration  (Phase 8)
  *
  * Loads deployed contract addresses and RPC details from deployed.json.
  * Hot-reloads when deployed.json changes (e.g. after re-deploy).

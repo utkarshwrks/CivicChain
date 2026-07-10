@@ -1,5 +1,5 @@
 /**
- * workflow.controller.js — CrowdPulse Workflow Controller  (Phase 13)
+ * workflow.controller.js — CivicChain Workflow Controller  (Phase 13)
  *
  * POST /api/workflow/:reportId/verify   → OPEN → VERIFIED
  * POST /api/workflow/:reportId/start    → VERIFIED → IN_PROGRESS

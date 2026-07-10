@@ -38,7 +38,7 @@ async function run() {
   };
 
   const metadata = {
-    source: 'CrowdPulse-report',
+    source: 'CivicChain-report',
     reportId: 'RP-TEST-12345',
     reporter: '0x1234567890123456789012345678901234567890',
     location: locationObj // This is the nested object introduced in Phase 14C
@@ -47,7 +47,7 @@ async function run() {
   const pinataMetadata = JSON.stringify({
     name: 'pothole3.png',
     keyvalues: {
-      source: 'CrowdPulse',
+      source: 'CivicChain',
       uploadedAt: new Date().toISOString(),
       ...metadata
     }

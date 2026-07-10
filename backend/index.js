@@ -414,7 +414,7 @@ app.use((err, _req, res, _next) => {
 
 app.listen(PORT, () => {
   console.log('\n╔══════════════════════════════════════╗');
-  console.log('║   CrowdPulse Backend  v2.7 (Juris) ║');
+  console.log('║   CivicChain Backend  v2.7 (Juris) ║');
   console.log('╚══════════════════════════════════════╝');
   console.log(`  API    → http://localhost:${PORT}`);
   console.log(`  SAYMAN → ${getActiveRpcUrl()}`);

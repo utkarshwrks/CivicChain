@@ -1,5 +1,5 @@
 /**
- * report.controller.js — CrowdPulse Report Controller  (Phase 7 + Phase 8 + 14C)
+ * report.controller.js — CivicChain Report Controller  (Phase 7 + Phase 8 + 14C)
  *
  * Phase 7:  processReportController  → POST /api/report/process
  * Phase 8:  createReportController   → POST /api/report/create

@@ -30,7 +30,7 @@ if (!RPC_RAW) {
 const RPC_URLS = RPC_RAW.split(',').map(s => s.trim()).filter(Boolean);
 let activeRpcUrl = RPC_URLS[0];
 
-const DEFAULT_KEY = crypto.createHash('sha256').update('crowdpulse-dev-deployer-2024').digest('hex');
+const DEFAULT_KEY = crypto.createHash('sha256').update('civicchain-dev-deployer-2024').digest('hex');
 const PRIVATE_KEY = process.env.DEPLOYER_PRIVATE_KEY || DEFAULT_KEY;
 
 let keyPair, publicKey, address;
@@ -160,7 +160,7 @@ async function deployContract({ name, version, code, nonce }) {
 async function main() {
   console.log('');
   console.log('╔══════════════════════════════════════════╗');
-  console.log('║   CrowdPulse Contract Deployer  v1.0     ║');
+  console.log('║   CivicChain Contract Deployer  v1.0     ║');
   console.log('╚══════════════════════════════════════════╝');
   console.log('');
   console.log(`  Network  : ${network}`);

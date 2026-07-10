@@ -1,5 +1,5 @@
 /**
- * ReportRegistry — CrowdPulse v2.1 (Style B Object VM format)
+ * ReportRegistry — CivicChain v2.1 (Style B Object VM format)
  */
 
 const VALID_CATEGORIES = [

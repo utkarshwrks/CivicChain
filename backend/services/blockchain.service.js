@@ -1,5 +1,5 @@
 /**
- * blockchain.service.js — CrowdPulse Blockchain Service  (Phase 8)
+ * blockchain.service.js — CivicChain Blockchain Service  (Phase 8)
  *
  * Signs and broadcasts REPORT_CREATE transactions to the SAYMAN blockchain.
  *

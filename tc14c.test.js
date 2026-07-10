@@ -51,8 +51,8 @@ async function authFlow(kp) {
   const address = sha256(pub).slice(0, 40);
   const { data: nd } = await rpc(`/api/auth/nonce/${address}`);
   if (!nd.nonce) throw new Error(`Nonce failed for ${address.slice(0,10)}: ${JSON.stringify(nd)}`);
-  // Backend signs: sha256("CrowdPulse:" + address + ":" + nonce)
-  const message = `CrowdPulse:${address}:${nd.nonce}`;
+  // Backend signs: sha256("CivicChain:" + address + ":" + nonce)
+  const message = `CivicChain:${address}:${nd.nonce}`;
   const msgHash = sha256(message);
   const sig = kp.sign(msgHash);
   const { data: ld } = await rpc('/api/auth/login', {

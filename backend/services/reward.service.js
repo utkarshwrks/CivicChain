@@ -1,5 +1,5 @@
 /**
- * reward.service.js — CrowdPulse Reward Service  (Phase 10)
+ * reward.service.js — CivicChain Reward Service  (Phase 10)
  *
  * Awards points after successful report creation.
  *

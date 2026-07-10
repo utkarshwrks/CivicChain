@@ -1,7 +1,7 @@
 {
-    "name": "crowdpulse",
+    "name": "civicchain",
     "version": "2.1.0",
-    "description": "CrowdPulse — Decentralised Civic Intelligence on SAYMAN Blockchain",
+    "description": "CivicChain — Decentralised Civic Intelligence on SAYMAN Blockchain",
     "type": "module",
     "scripts": {
         "deploy:local": "SAYMAN_RPC=https://sayman.up.railway.app node scripts/deploy.js --network=local",

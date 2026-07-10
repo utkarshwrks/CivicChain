@@ -1,5 +1,5 @@
 /**
- * ipfs.service.js — CrowdPulse IPFS Storage Service  (Phase 6)
+ * ipfs.service.js — CivicChain IPFS Storage Service  (Phase 6)
  *
  * Uploads an image buffer to Pinata (IPFS pinning service) and returns
  * the content identifier (CID) plus a public gateway URL.
@@ -53,7 +53,7 @@ export async function uploadToIPFS(buffer, mimeType, filename, metadata = {}) {
 
   // Pinata metadata — stored alongside the pin, queryable via Pinata dashboard
   const finalKeyvalues = {
-    source:    'CrowdPulse',
+    source:    'CivicChain',
     uploadedAt: new Date().toISOString(),
     ...metadata,
   };
@@ -64,7 +64,7 @@ export async function uploadToIPFS(buffer, mimeType, filename, metadata = {}) {
   }
 
   const pinataMetadata = JSON.stringify({
-    name:      filename || 'CrowdPulse Upload',
+    name:      filename || 'CivicChain Upload',
     keyvalues: finalKeyvalues,
   });
   form.append('pinataMetadata', pinataMetadata);

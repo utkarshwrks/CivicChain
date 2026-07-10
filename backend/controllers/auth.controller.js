@@ -1,5 +1,5 @@
 /**
- * auth.controller.js — CrowdPulse Auth Controllers  (Phase 14A)
+ * auth.controller.js — CivicChain Auth Controllers  (Phase 14A)
  *
  * GET  /api/auth/nonce/:address  →  { nonce, expiresAt }
  * POST /api/auth/login           →  { token, address, role }
