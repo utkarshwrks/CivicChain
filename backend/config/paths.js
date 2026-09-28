@@ -11,6 +11,27 @@ import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_DATA_DIR = path.join(__dirname, '..', 'data');
 
+/**
+ * A fresh CIVICCHAIN_DATA_DIR (e.g. an empty persistent disk on first deploy)
+ * is seeded once with the default data files — cities.json is required.
+ * Existing files are never overwritten. Skipped in tests.
+ */
+function seedDataDir() {
+  const dir = process.env.CIVICCHAIN_DATA_DIR;
+  if (!dir || process.env.NODE_ENV === 'test' || path.resolve(dir) === DEFAULT_DATA_DIR) return;
+  try {
+    fs.mkdirSync(dir, { recursive: true });
+    for (const f of fs.readdirSync(DEFAULT_DATA_DIR)) {
+      const src = path.join(DEFAULT_DATA_DIR, f);
+      const dst = path.join(dir, f);
+      if (f.endsWith('.json') && fs.statSync(src).isFile() && !fs.existsSync(dst)) fs.copyFileSync(src, dst);
+    }
+  } catch (e) {
+    console.error('[data] Could not seed CIVICCHAIN_DATA_DIR:', e.message);
+  }
+}
+seedDataDir();
+
 export function dataDir() {
   return process.env.CIVICCHAIN_DATA_DIR || DEFAULT_DATA_DIR;
 }

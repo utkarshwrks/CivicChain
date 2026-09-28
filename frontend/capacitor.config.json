@@ -1,0 +1,12 @@
+{
+  "appId": "app.civicchain.android",
+  "appName": "CivicChain",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https"
+  },
+  "android": {
+    "backgroundColor": "#07080a",
+    "allowMixedContent": false
+  }
+}

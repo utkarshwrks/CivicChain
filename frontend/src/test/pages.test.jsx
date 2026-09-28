@@ -31,7 +31,8 @@ describe('ExplorerPage', () => {
     const strip = screen.getByTestId('network-strip');
     expect(strip).toHaveTextContent('Ethereum Sepolia');
     expect(strip).toHaveTextContent('11155111');
-    expect(screen.queryByText(/validator|mempool/i)).not.toBeInTheDocument();
+    const labels = [...strip.querySelectorAll('.l')].map((e) => e.textContent);
+    expect(labels).toEqual(['Network', 'Chain ID', 'Latest block', 'NFT contract', 'Contract owner', 'Minter', 'Total NFTs minted']);
     const link = screen.getByRole('link', { name: /View on Etherscan/ });
     expect(link).toHaveAttribute('href', `https://sepolia.etherscan.io/nft/${CONTRACT}/7`);
   });

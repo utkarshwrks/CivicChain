@@ -1,0 +1,47 @@
+# Render Blueprint — one web service serves the API and the built frontend
+# (same origin, so VITE_API_URL stays empty). Secrets are entered in the Render
+# dashboard (sync: false) and never committed.
+services:
+  - type: web
+    name: civicchain
+    runtime: node
+    plan: free
+    buildCommand: npm install --include=dev && npm run build
+    startCommand: npm start
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: "20"
+      - key: SEPOLIA_RPC_URL
+        sync: false
+      - key: DEPLOYER_PRIVATE_KEY
+        sync: false
+      - key: NFT_CONTRACT_ADDRESS
+        sync: false
+      - key: NFT_DEPLOYMENT_BLOCK
+        sync: false
+      - key: ADMIN_ADDRESSES
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: PINATA_JWT
+        sync: false
+      - key: PINATA_GATEWAY
+        value: https://gateway.pinata.cloud/ipfs
+      - key: JWT_SECRET
+        generateValue: true
+      - key: CORS_ORIGINS
+        sync: false
+      - key: FRONTEND_PUBLIC_URL
+        sync: false
+    # The free plan has an ephemeral filesystem: backend/data resets on each
+    # deploy (the chain and IPFS keep the evidence). On a paid plan, attach a
+    # disk and point CIVICCHAIN_DATA_DIR at it — it is seeded on first boot:
+    # disk:
+    #   name: civicchain-data
+    #   mountPath: /var/data
+    #   sizeGB: 1
+    # (then add envVar CIVICCHAIN_DATA_DIR=/var/data/civicchain)

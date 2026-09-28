@@ -2,12 +2,12 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Wallet, LogOut, ChevronDown, Copy, CheckCircle2, ShieldCheck, Hammer, Crown,
-  ExternalLink, Gem, Star, Download, Menu, X,
+  ExternalLink, Gem, Star, Download, Menu, X, Server,
 } from 'lucide-react';
 import { useWallet } from '../hooks/useWallet.jsx';
 import WalletModal from './WalletModal.jsx';
 import { shortAddress, addressUrl } from '../utils/format.js';
-import { APK_URL, isNativeApp } from '../utils/platform.js';
+import { APK_URL, isNativeApp, setApiBase, getApiBase } from '../utils/platform.js';
 
 // Tabs per role
 export const ROLE_TABS = {
@@ -86,6 +86,16 @@ export default function Header({ tab, setTab }) {
 
           <div className="header-actions">
             <DownloadApkButton className="header-apk" />
+            {isNativeApp() && (
+              <button
+                className="icon-btn"
+                title={`Server: ${getApiBase() || 'not set'}`}
+                aria-label="Server settings"
+                onClick={() => { setApiBase(null); window.location.reload(); }}
+              >
+                <Server size={15} />
+              </button>
+            )}
 
             {/* Wallet + Role */}
             {wallet ? (

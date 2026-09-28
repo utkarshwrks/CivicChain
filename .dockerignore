@@ -1,0 +1,15 @@
+node_modules
+frontend/node_modules
+frontend/dist
+frontend/android
+artifacts
+cache
+coverage
+.env
+.env.*
+!.env.example
+*.keystore
+city-keys.json
+demo-admin-key.json
+backend/data/_backup_*
+.git

@@ -1,40 +1,40 @@
 {
     "name": "civicchain",
-    "version": "2.1.0",
-    "description": "CivicChain — Decentralised Civic Intelligence on SAYMAN Blockchain",
+    "version": "3.0.0",
+    "description": "CivicChain — Decentralized Civic Intelligence on Ethereum Sepolia",
     "type": "module",
     "scripts": {
         "deploy:local": "hardhat run scripts/deploy-sepolia.js --network localhost",
-        "deploy:testnet": "node scripts/deploy.js --network=testnet",
-        "deploy:mainnet": "node scripts/deploy.js --network=mainnet",
         "backend": "node backend/index.js",
-        "backend:dev": "SAYMAN_RPC=https://sayman.up.railway.app node backend/index.js",
         "frontend": "cd frontend && npm run dev",
         "dev": "concurrently \"npm run backend\" \"npm run frontend\"",
-        "dev:local": "concurrently \"npm run backend:dev\" \"npm run frontend\"",
-        "build": "cd frontend && npm install && npm run build",
+        "build": "cd frontend && npm install --include=dev && npm run build",
         "start": "node backend/index.js",
         "compile": "hardhat compile",
         "test:contracts": "hardhat test",
         "chain:local": "hardhat node",
         "deploy:sepolia": "hardhat run scripts/deploy-sepolia.js --network sepolia",
-        "deploy:legacy-local": "SAYMAN_RPC=https://sayman.up.railway.app node scripts/deploy.js --network=local",
         "test:backend": "vitest run",
         "smoke:sepolia": "node scripts/sepolia-smoke.js",
         "migrate:data": "node scripts/migrate-data-to-ethereum.js",
         "e2e:sepolia": "node scripts/e2e-sepolia.js",
         "rehearsal:local": "node test/harness/run-local.mjs",
-        "rehearsal:ui": "node test/harness/ui-walkthrough.mjs"
+        "rehearsal:ui": "node test/harness/ui-walkthrough.mjs",
+        "check:legacy": "node scripts/check-no-legacy.js",
+        "test:frontend": "cd frontend && npm test",
+        "test": "npm run check:legacy && npm run check:secrets && npm run test:backend && npm run test:frontend",
+        "check:secrets": "node scripts/check-secrets.js",
+        "build:apk": "bash scripts/build-apk.sh"
     },
     "dependencies": {
         "@google/generative-ai": "^0.24.1",
         "axios": "^1.17.0",
         "cors": "^2.8.6",
         "dotenv": "^17.4.2",
-        "elliptic": "^6.5.7",
         "ethers": "^6.16.0",
         "express": "^4.22.2",
         "express-rate-limit": "^7.5.1",
+        "form-data": "^4.0.6",
         "helmet": "^8.2.0",
         "jsonwebtoken": "^9.0.3",
         "multer": "^2.2.0"
@@ -47,5 +47,8 @@
         "puppeteer-core": "^23.11.1",
         "supertest": "^7.3.0",
         "vitest": "^3.2.7"
+    },
+    "engines": {
+        "node": ">=20"
     }
 }

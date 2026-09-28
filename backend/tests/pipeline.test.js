@@ -353,7 +353,7 @@ describe('NFT API', () => {
     const stats = await request(app).get('/api/stats');
     expect(stats.body).toMatchObject({ network: 'Ethereum Sepolia', chainId: 11155111, latestBlock: 5_000_000 });
     expect(stats.body.totalNFTs).toBeGreaterThanOrEqual(1);
-    expect(stats.body.validators).toBeUndefined();
+    expect(Object.keys(stats.body).sort()).toEqual(['chainId', 'latestBlock', 'mintSuccessRate', 'network', 'resolvedReports', 'totalNFTs', 'totalReports']);
     expect((await request(app).get('/api/blocks')).status).toBe(410);
     expect((await request(app).post('/api/broadcast').send({ type: 'x' })).status).toBe(404);
     expect((await request(app).get(`/api/nonce/${Wallet.createRandom().address}`)).status).toBe(404);
