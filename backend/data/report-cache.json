@@ -10,8 +10,11 @@
       "severity": "HIGH",
       "status": "OPEN",
       "createdAt": 1782026584849,
-      "blockIndex": 715,
-      "txId": "45ec253b-6634-4a84-8301-5f92c2d84e20"
+      "reportId": "45ec253b-6634-4a84-8301-5f92c2d84e20",
+      "legacy": true,
+      "nft": {
+        "status": "NOT_ELIGIBLE_LEGACY"
+      }
     },
     {
       "id": "7bc00401-e6cb-4654-bfa1-d77265eded8e",
@@ -23,8 +26,11 @@
       "severity": "HIGH",
       "status": "OPEN",
       "createdAt": 1782025097521,
-      "blockIndex": 417,
-      "txId": "7bc00401-e6cb-4654-bfa1-d77265eded8e"
+      "reportId": "7bc00401-e6cb-4654-bfa1-d77265eded8e",
+      "legacy": true,
+      "nft": {
+        "status": "NOT_ELIGIBLE_LEGACY"
+      }
     },
     {
       "id": "f45d9c9e-9a5d-4b2f-b1f8-2154713cd0aa",
@@ -36,8 +42,11 @@
       "severity": "HIGH",
       "status": "OPEN",
       "createdAt": 1782024988409,
-      "blockIndex": 396,
-      "txId": "f45d9c9e-9a5d-4b2f-b1f8-2154713cd0aa"
+      "reportId": "f45d9c9e-9a5d-4b2f-b1f8-2154713cd0aa",
+      "legacy": true,
+      "nft": {
+        "status": "NOT_ELIGIBLE_LEGACY"
+      }
     },
     {
       "id": "777f946c-c2fd-42c3-be2a-337bd2c32cda",
@@ -48,8 +57,11 @@
       "severity": "HIGH",
       "status": "OPEN",
       "createdAt": 1781777468395,
-      "blockIndex": 1167,
-      "txId": "777f946c-c2fd-42c3-be2a-337bd2c32cda"
+      "reportId": "777f946c-c2fd-42c3-be2a-337bd2c32cda",
+      "legacy": true,
+      "nft": {
+        "status": "NOT_ELIGIBLE_LEGACY"
+      }
     },
     {
       "id": "57aba5fd-b694-4142-b356-a00b55614e9b",
@@ -60,10 +72,12 @@
       "severity": "HIGH",
       "status": "OPEN",
       "createdAt": 1781772336433,
-      "blockIndex": 140,
-      "txId": "57aba5fd-b694-4142-b356-a00b55614e9b"
+      "reportId": "57aba5fd-b694-4142-b356-a00b55614e9b",
+      "legacy": true,
+      "nft": {
+        "status": "NOT_ELIGIBLE_LEGACY"
+      }
     }
   ],
-  "lastBlock": 5984,
   "updatedAt": 1783677828286
 }

@@ -1,114 +1,133 @@
 /**
- * rbac.service.js — CivicChain Role-Based Access Control  (Phase 14A)
+ * rbac.service.js — CivicChain Role-Based Access Control
  *
  * Manages address → role mappings, persisted to backend/data/roles.json.
- * On first startup, auto-seeds the deployer address as ADMIN.
+ * Keys are lowercase 0x Ethereum addresses.
+ *
+ * Admin seeding on startup:
+ *   • every address in ADMIN_ADDRESSES (comma-separated 0x addresses)
+ *   • if ADMIN_ADDRESSES is empty: the deployer's Ethereum address derived
+ *     from DEPLOYER_PRIVATE_KEY (a warning recommends a separate admin wallet)
  *
  * Valid roles: CITIZEN | AUTHORITY | MUNICIPAL_TEAM | ADMIN
  */
 
-import fs            from 'fs';
-import path          from 'path';
-import crypto        from 'crypto';
-import { fileURLToPath } from 'url';
-import { createRequire } from 'module';
+import { Wallet }    from 'ethers';
+import { isValidAddress, normalizeAddress } from '../utils/address.js';
+import { dataPath, readJson, writeJsonAtomic } from '../config/paths.js';
 
-const __dirname  = path.dirname(fileURLToPath(import.meta.url));
-const require    = createRequire(import.meta.url);
-const elliptic   = require('elliptic');
-const ec         = new elliptic.ec('secp256k1');
-
-const LOG         = '[RBAC]';
-const ROLES_PATH  = path.join(__dirname, '..', 'data', 'roles.json');
+const LOG = '[RBAC]';
 
 export const VALID_ROLES = ['CITIZEN', 'AUTHORITY', 'MUNICIPAL_TEAM', 'ADMIN'];
 const DEFAULT_ROLE = 'CITIZEN';
 
+const rolesPath = () => dataPath('roles.json');
+
 // ─── Role Store ──────────────────────────────────────────────────────────────
 
-let roleStore = {}; // address (lowercase) → role
+let roleStore = {}; // lowercase 0x address → role
 
 function loadStore() {
-  try {
-    if (fs.existsSync(ROLES_PATH)) {
-      roleStore = JSON.parse(fs.readFileSync(ROLES_PATH, 'utf8'));
-      console.log(`${LOG} Loaded ${Object.keys(roleStore).length} role assignments from disk`);
-    }
-  } catch (e) {
-    console.warn(`${LOG} Failed to load roles.json:`, e.message);
-    roleStore = {};
+  roleStore = {};
+  const raw = readJson(rolesPath(), {});
+  for (const [addr, role] of Object.entries(raw || {})) {
+    const key = normalizeAddress(addr);
+    if (key && VALID_ROLES.includes(role)) roleStore[key] = role;
   }
 }
 
 function saveStore() {
   try {
-    const dir = path.dirname(ROLES_PATH);
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(ROLES_PATH, JSON.stringify(roleStore, null, 2), 'utf8');
+    writeJsonAtomic(rolesPath(), roleStore);
   } catch (e) {
     console.error(`${LOG} Failed to save roles.json:`, e.message);
   }
 }
 
-// ─── Deployer Seed ───────────────────────────────────────────────────────────
+// ─── Admin Seed ──────────────────────────────────────────────────────────────
 
-function deriveDeployerAddress() {
-  const pk = process.env.DEPLOYER_PRIVATE_KEY;
-  if (!pk || pk.length < 60) return null;
+/** Deployer's 0x address from DEPLOYER_PRIVATE_KEY, or null. Never logs the key. */
+export function deriveDeployerAddress() {
+  const pk = (process.env.DEPLOYER_PRIVATE_KEY || '').trim();
+  if (!pk) return null;
   try {
-    const kp        = ec.keyFromPrivate(pk, 'hex');
-    const publicKey = kp.getPublic('hex');
-    return crypto.createHash('sha256').update(publicKey).digest('hex').slice(0, 40);
+    return new Wallet(pk.startsWith('0x') ? pk : `0x${pk}`).address;
   } catch {
     return null;
   }
 }
 
-function seedDeployer() {
-  const deployer = deriveDeployerAddress();
-  if (!deployer) {
-    console.warn(`${LOG} Could not derive deployer address — ADMIN auto-seed skipped`);
-    return;
+/** Addresses from ADMIN_ADDRESSES that are valid 0x addresses (lowercase). */
+export function getConfiguredAdmins() {
+  return (process.env.ADMIN_ADDRESSES || '')
+    .split(',')
+    .map((a) => a.trim())
+    .filter(Boolean)
+    .filter((a) => {
+      if (isValidAddress(a)) return true;
+      console.warn(`${LOG} Ignoring invalid ADMIN_ADDRESSES entry "${a.slice(0, 12)}…"`);
+      return false;
+    })
+    .map(normalizeAddress);
+}
+
+export function seedAdmins() {
+  let admins = getConfiguredAdmins();
+  if (admins.length === 0) {
+    const deployer = deriveDeployerAddress();
+    if (!deployer) {
+      console.warn(`${LOG} No ADMIN_ADDRESSES and no DEPLOYER_PRIVATE_KEY — ADMIN auto-seed skipped`);
+      return [];
+    }
+    console.warn(`${LOG} ADMIN_ADDRESSES is empty — seeding the deployer address as ADMIN. ` +
+      'Set ADMIN_ADDRESSES to a separate admin wallet; do not log into the browser with the deployer key.');
+    admins = [normalizeAddress(deployer)];
   }
-  if (!roleStore[deployer]) {
-    roleStore[deployer] = 'ADMIN';
-    saveStore();
-    console.log(`${LOG} Auto-seeded deployer ${deployer} as ADMIN`);
-  } else {
-    console.log(`${LOG} Deployer ${deployer} already has role: ${roleStore[deployer]}`);
+  let changed = false;
+  for (const a of admins) {
+    if (roleStore[a] !== 'ADMIN') {
+      roleStore[a] = 'ADMIN';
+      changed = true;
+      console.log(`${LOG} Seeded ${a.slice(0, 10)}… as ADMIN`);
+    }
   }
+  if (changed) saveStore();
+  return admins;
 }
 
 // ─── Public API ──────────────────────────────────────────────────────────────
 
-/**
- * Get the role for an address. Returns 'CITIZEN' if unassigned.
- */
+/** Role for an address. Returns 'CITIZEN' if unassigned or not a 0x address. */
 export function getRole(address) {
-  if (!address) return DEFAULT_ROLE;
-  return roleStore[address.toLowerCase()] || DEFAULT_ROLE;
+  const key = normalizeAddress(address);
+  if (!key) return DEFAULT_ROLE;
+  return roleStore[key] || DEFAULT_ROLE;
 }
 
-/**
- * Assign a role to an address.
- */
+/** Assign a role to an address. Throws on an invalid role or address. */
 export function setRole(address, role) {
   if (!VALID_ROLES.includes(role)) {
     throw new Error(`Invalid role: "${role}". Must be one of: ${VALID_ROLES.join(', ')}`);
   }
-  roleStore[address.toLowerCase()] = role;
+  const key = normalizeAddress(address);
+  if (!key) throw new Error('INVALID_WALLET');
+  roleStore[key] = role;
   saveStore();
-  console.log(`${LOG} Assigned role ${role} to ${address}`);
+  console.log(`${LOG} Assigned role ${role} to ${key.slice(0, 10)}…`);
 }
 
-/**
- * Get all role assignments.
- */
+/** All role assignments (lowercase 0x address → role). */
 export function getAllRoles() {
   return { ...roleStore };
+}
+
+/** Re-read roles.json and re-seed admins (used by tests and the migration). */
+export function reloadRoles() {
+  loadStore();
+  return seedAdmins();
 }
 
 // ─── Init ────────────────────────────────────────────────────────────────────
 
 loadStore();
-seedDeployer();
+seedAdmins();

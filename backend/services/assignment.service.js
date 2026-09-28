@@ -21,9 +21,10 @@ import fs   from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { getDepartmentForCategory } from './department.service.js';
+import { dataPath } from '../config/paths.js';
 
 const __dirname   = path.dirname(fileURLToPath(import.meta.url));
-const ASSIGN_PATH = path.join(__dirname, '..', 'data', 'assignments.json');
+const ASSIGN_PATH = dataPath('assignments.json');
 const LOG         = '[ASSIGN]';
 
 // ─── In-Memory Store ──────────────────────────────────────────────────────────

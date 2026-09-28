@@ -19,6 +19,7 @@ import path              from 'path';
 import { createRequire } from 'module';
 import { fileURLToPath } from 'url';
 import { blockchainConfig, GAS_CONFIG } from '../config/blockchain.config.js';
+import { dataPath } from '../config/paths.js';
 
 const __dirname  = path.dirname(fileURLToPath(import.meta.url));
 const require    = createRequire(import.meta.url);
@@ -30,7 +31,7 @@ const STATUS_LOG = '[STATUS_CHANGE]';
 
 // ─── Status Store (persisted to JSON) ─────────────────────────────────────────
 
-const STATUS_PATH = path.join(__dirname, '..', 'data', 'workflow-status.json');
+const STATUS_PATH = dataPath('workflow-status.json');
 let statusStore   = {};   // reportId → { status, reporter, notes: [], updatedAt }
 
 function loadStore() {

@@ -13,6 +13,7 @@ import {
   setUserJurisdiction, getUserJurisdiction,
   getCityName, isValidCity,
 } from '../services/jurisdiction.service.js';
+import { isValidAddress, normalizeAddress, toChecksum, invalidWallet } from '../utils/address.js';
 
 /**
  * GET /api/rbac/role/:address
@@ -21,13 +22,12 @@ import {
 export function getRoleController(req, res) {
   try {
     const { address } = req.params;
-    if (!address || address.length !== 40) {
-      return res.status(400).json({ error: 'Invalid address.' });
-    }
-    const role  = getRole(address.toLowerCase());
-    const juris = getUserJurisdiction(address.toLowerCase());
+    if (!isValidAddress(address)) return invalidWallet(res);
+    const key   = normalizeAddress(address);
+    const role  = getRole(key);
+    const juris = getUserJurisdiction(key);
     return res.json({
-      address:    address.toLowerCase(),
+      address:    toChecksum(address),
       role,
       department: juris?.department || null,
       city:       juris?.city       || null,
@@ -59,38 +59,39 @@ export function assignRoleController(req, res) {
   try {
     const { address, role, department, city } = req.body || {};
 
-    if (!address || typeof address !== 'string') {
-      return res.status(400).json({ error: 'address is required.' });
-    }
+    if (!isValidAddress(address)) return invalidWallet(res);
     if (!role || !VALID_ROLES.includes(role)) {
       return res.status(400).json({
         error: `Invalid role. Must be one of: ${VALID_ROLES.join(', ')}`,
       });
     }
 
-    setRole(address.toLowerCase(), role);
+    // Validate department + city BEFORE writing anything
+    if (department && !DEPARTMENTS.includes(department)) {
+      return res.status(400).json({ error: `Invalid department: "${department}"` });
+    }
+    if (city && !isValidCity(city)) {
+      return res.status(400).json({ error: `Invalid city: "${city}"` });
+    }
+
+    const key = normalizeAddress(address);
+    setRole(key, role);
 
     // Phase 14C: optionally assign department + city at the same time
     let assignedDept = null;
     let assignedCity = null;
 
     if (department) {
-      if (!DEPARTMENTS.includes(department)) {
-        return res.status(400).json({ error: `Invalid department: "${department}"` });
-      }
-      if (city && !isValidCity(city)) {
-        return res.status(400).json({ error: `Invalid city: "${city}"` });
-      }
-      setUserJurisdiction(address.toLowerCase(), department, city || null);
+      setUserJurisdiction(key, department, city || null);
       assignedDept = department;
       assignedCity = city || null;
     }
 
-    console.log(`[RBAC] Admin ${req.user?.address} assigned ${role}${assignedDept ? ' + ' + assignedDept : ''}${assignedCity ? ' + ' + assignedCity : ''} → ${address}`);
+    console.log(`[RBAC] Admin assigned ${role}${assignedDept ? ' + ' + assignedDept : ''}${assignedCity ? ' + ' + assignedCity : ''} → ${key.slice(0, 10)}…`);
 
     return res.json({
       success:    true,
-      address:    address.toLowerCase(),
+      address:    toChecksum(address),
       role,
       department: assignedDept,
       city:       assignedCity,

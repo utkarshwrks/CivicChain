@@ -1,40 +1,38 @@
 /**
- * auth.service.js — CivicChain Wallet Authentication  (Phase 14A)
+ * auth.service.js — CivicChain Wallet Authentication  (EIP-191)
  *
- * Challenge-response authentication using secp256k1 wallet keys.
+ * Passwordless challenge-response login with standard Ethereum wallets.
  *
  * Flow:
- *   1. generateNonce(address)  →  { nonce, expiresAt }  (stored 5-min)
- *   2. verifyLogin({ address, publicKey, nonce, signature })
- *        → verifies sig, derives address from pubkey, issues JWT
- *   3. verifyToken(token)  →  decoded { address, role, iat, exp }
+ *   1. generateNonce(address)  →  { nonce, expiresAt }  (single use, 5-min TTL)
+ *   2. The browser signs the text  CivicChain:<checksumAddress>:<nonce>
+ *      with wallet.signMessage()  (EIP-191 personal_sign)
+ *   3. verifyLogin({ address, nonce, signature })
+ *        → ethers.verifyMessage recovers the signer, which must equal the
+ *          claimed address; the nonce is consumed; a 24 h JWT is issued
+ *   4. verifyToken(token)  →  decoded { address, role, iat, exp }
  */
 
-import crypto        from 'crypto';
-import { fileURLToPath } from 'url';
-import { createRequire } from 'module';
-import { getRole } from './rbac.service.js';
-
-const require  = createRequire(import.meta.url);
-const elliptic = require('elliptic');
-const jwt      = require('jsonwebtoken');
-const ec       = new elliptic.ec('secp256k1');
+import crypto          from 'crypto';
+import jwt             from 'jsonwebtoken';
+import { verifyMessage } from 'ethers';
+import { getRole }     from './rbac.service.js';
+import { isValidAddress, normalizeAddress, toChecksum } from '../utils/address.js';
 
 const LOG = '[AUTH]';
 
 // ─── Nonce Store (in-memory, ephemeral by design) ─────────────────────────────
-// address (lowercase) → { nonce: string, expiresAt: ms }
+// address (lowercase 0x) → { nonce: string, expiresAt: ms }
 const nonceStore = new Map();
-const NONCE_TTL  = 5 * 60 * 1000; // 5 minutes
+export const NONCE_TTL = 5 * 60 * 1000; // 5 minutes
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function sha256(str) {
-  return crypto.createHash('sha256').update(str).digest('hex');
-}
-
-function deriveAddress(publicKeyHex) {
-  return sha256(publicKeyHex).slice(0, 40);
+/** Typed auth error; `status` is the HTTP code the controller should use. */
+export class AuthError extends Error {
+  constructor(code, message, status = 401) {
+    super(message);
+    this.code   = code;
+    this.status = status;
+  }
 }
 
 function cleanExpiredNonces() {
@@ -44,92 +42,81 @@ function cleanExpiredNonces() {
   }
 }
 
+/** The exact text the wallet signs. The address is always EIP-55 checksummed. */
+export function buildLoginMessage(address, nonce) {
+  return `CivicChain:${toChecksum(address)}:${nonce}`;
+}
+
+export function getJwtSecret() {
+  const secret = process.env.JWT_SECRET;
+  if (!secret) throw new AuthError('JWT_NOT_CONFIGURED', 'JWT_SECRET is not configured on the server.', 500);
+  return secret;
+}
+
 // ─── Public API ───────────────────────────────────────────────────────────────
 
 /**
  * Generate a one-time nonce for the given address.
- * @param {string} address  — lowercase hex wallet address
- * @returns {{ nonce: string, expiresAt: number }}
+ * @param {string} address  0x Ethereum address (any case)
+ * @returns {{ nonce: string, expiresAt: number, message: string }}
  */
 export function generateNonce(address) {
+  if (!isValidAddress(address)) throw new AuthError('INVALID_WALLET', 'Invalid wallet address.', 400);
   cleanExpiredNonces();
+  const key       = normalizeAddress(address);
   const nonce     = crypto.randomBytes(16).toString('hex');
   const expiresAt = Date.now() + NONCE_TTL;
-  nonceStore.set(address.toLowerCase(), { nonce, expiresAt });
-  console.log(`${LOG} Nonce generated for ${address.slice(0, 10)}…`);
-  return { nonce, expiresAt };
+  nonceStore.set(key, { nonce, expiresAt });
+  return { nonce, expiresAt, message: buildLoginMessage(address, nonce) };
 }
 
 /**
  * Verify a wallet login attempt.
  *
  * @param {object} params
- * @param {string} params.address   — claimed wallet address
- * @param {string} params.publicKey — full secp256k1 public key (hex, compressed or uncompressed)
- * @param {string} params.nonce     — nonce received from generateNonce
- * @param {{ r: string, s: string }} params.signature — secp256k1 signature of sha256("CivicChain:ADDRESS:NONCE")
- *
- * @returns {{ token: string, address: string, role: string }}
- * @throws {Error} on any verification failure
+ * @param {string} params.address   claimed 0x wallet address
+ * @param {string} params.nonce     nonce received from generateNonce
+ * @param {string} params.signature EIP-191 signature (0x…, 65 bytes)
+ * @returns {{ token: string, address: string, role: string }}  address is checksummed
+ * @throws {AuthError}
  */
-export function verifyLogin({ address, publicKey, nonce, signature }) {
-  const addrLower = address.toLowerCase();
+export function verifyLogin({ address, nonce, signature }) {
+  if (!isValidAddress(address)) throw new AuthError('INVALID_WALLET', 'Invalid wallet address.', 400);
+  if (typeof nonce !== 'string' || !nonce) throw new AuthError('INVALID_NONCE', 'Nonce is required.', 400);
+  if (typeof signature !== 'string' || !/^0x[0-9a-fA-F]+$/.test(signature)) {
+    throw new AuthError('INVALID_SIGNATURE', 'Signature must be a 0x-prefixed hex string.', 400);
+  }
 
-  // ── 1. Check nonce ───────────────────────────────────────────────────────
-  const stored = nonceStore.get(addrLower);
-  if (!stored) {
-    throw new Error('No pending nonce for this address. Request a new nonce first.');
-  }
-  if (stored.nonce !== nonce) {
-    throw new Error('Nonce mismatch.');
-  }
+  const key = normalizeAddress(address);
+
+  // ── 1. Nonce: must exist, match and be unexpired — then it is consumed ──────
+  const stored = nonceStore.get(key);
+  if (!stored) throw new AuthError('NONCE_NOT_FOUND', 'No pending nonce for this address. Request a new nonce first.');
   if (Date.now() > stored.expiresAt) {
-    nonceStore.delete(addrLower);
-    throw new Error('Nonce expired. Request a new nonce.');
+    nonceStore.delete(key);
+    throw new AuthError('NONCE_EXPIRED', 'Nonce expired. Request a new nonce.');
   }
+  if (stored.nonce !== nonce) throw new AuthError('NONCE_MISMATCH', 'Nonce mismatch.');
+  nonceStore.delete(key);
 
-  // ── 2. Delete nonce (one-time use) ───────────────────────────────────────
-  nonceStore.delete(addrLower);
-
-  // ── 3. Reconstruct the signed message hash ───────────────────────────────
-  //    Message MUST match exactly what the frontend signed:
-  //    sha256("CivicChain:" + address + ":" + nonce)
-  const message = `CivicChain:${addrLower}:${nonce}`;
-  const hash    = sha256(message);
-
-  // ── 4. Verify elliptic signature ─────────────────────────────────────────
+  // ── 2. Recover the signer (EIP-191) and compare to the claimed address ─────
+  let recovered;
   try {
-    const key   = ec.keyFromPublic(publicKey, 'hex');
-    const valid = key.verify(hash, { r: signature.r, s: signature.s });
-    if (!valid) throw new Error('Signature does not verify.');
-  } catch (e) {
-    throw new Error(`Signature verification failed: ${e.message}`);
+    recovered = verifyMessage(buildLoginMessage(address, nonce), signature);
+  } catch {
+    throw new AuthError('INVALID_SIGNATURE', 'Signature could not be verified.');
+  }
+  if (normalizeAddress(recovered) !== key) {
+    throw new AuthError('SIGNER_MISMATCH', 'Signature was not produced by this wallet.');
   }
 
-  // ── 5. Verify publicKey → address match ──────────────────────────────────
-  const derivedAddress = deriveAddress(publicKey);
-  if (derivedAddress !== addrLower) {
-    throw new Error(
-      `Public key does not match address. ` +
-      `Derived: ${derivedAddress}, Claimed: ${addrLower}`
-    );
-  }
+  // ── 3. Role + JWT ───────────────────────────────────────────────────────────
+  const checksum = toChecksum(address);
+  const role     = getRole(checksum);
+  const token    = jwt.sign({ address: checksum, role }, getJwtSecret(), { expiresIn: '24h' });
 
-  // ── 6. Lookup role ────────────────────────────────────────────────────────
-  const role = getRole(addrLower);
-
-  // ── 7. Sign JWT ───────────────────────────────────────────────────────────
-  const secret = process.env.JWT_SECRET;
-  if (!secret) throw new Error('JWT_SECRET is not configured in environment.');
-
-  const token = jwt.sign(
-    { address: addrLower, role },
-    secret,
-    { expiresIn: '24h' }
-  );
-
-  console.log(`${LOG} ✅ Login verified for ${addrLower.slice(0, 10)}… | role: ${role}`);
-  return { token, address: addrLower, role };
+  console.log(`${LOG} Login verified for ${checksum.slice(0, 10)}… | role: ${role}`);
+  return { token, address: checksum, role };
 }
 
 /**
@@ -137,7 +124,10 @@ export function verifyLogin({ address, publicKey, nonce, signature }) {
  * @throws if token is invalid or expired
  */
 export function verifyToken(token) {
-  const secret = process.env.JWT_SECRET;
-  if (!secret) throw new Error('JWT_SECRET is not configured.');
-  return jwt.verify(token, secret);
+  return jwt.verify(token, getJwtSecret());
+}
+
+/** Test helper — clears all pending nonces. */
+export function _resetNonces() {
+  nonceStore.clear();
 }

@@ -25,6 +25,7 @@ import {
   enrichReports, getReportsByJurisdiction,
 } from '../services/assignment.service.js';
 import { getReports } from '../services/reportCache.js';
+import { isValidAddress, normalizeAddress, toChecksum, invalidWallet } from '../utils/address.js';
 
 // ─── 0. City List ─────────────────────────────────────────────────────────────
 
@@ -179,17 +180,19 @@ export function getUserDepartmentsController(_req, res) {
 export function assignUserController(req, res) {
   try {
     const { address, department, city } = req.body || {};
-    if (!address)    return res.status(400).json({ error: 'address is required.' });
+    if (!isValidAddress(address)) return invalidWallet(res);
     if (!department) return res.status(400).json({ error: 'department is required.' });
-    const currentJuris = getUserJurisdiction(address);
-    const targetCity = city || currentJuris?.city || null;
+    if (city && !isValidCity(city)) return res.status(400).json({ error: `Invalid city: "${city}"` });
+    const key          = normalizeAddress(address);
+    const currentJuris = getUserJurisdiction(key);
+    const targetCity   = city || currentJuris?.city || null;
 
-    setUserJurisdiction(address.toLowerCase(), department, targetCity);
-    console.log(`[DEPT] Admin ${req.user?.address} set ${address} → dept=${department}, city=${targetCity}`);
+    setUserJurisdiction(key, department, targetCity);
+    console.log(`[DEPT] Admin set ${key.slice(0, 10)}… → dept=${department}, city=${targetCity}`);
 
     return res.json({
       success:     true,
-      address:     address.toLowerCase(),
+      address:     toChecksum(address),
       department,
       city:        targetCity,
       displayName: DEPARTMENT_DISPLAY[department] || department,
@@ -282,8 +285,11 @@ export function manualAssignController(req, res) {
       return res.status(400).json({ error: `Invalid city: "${city}"` });
     }
 
+    if (!DEPARTMENTS.includes(department)) {
+      return res.status(400).json({ error: `Invalid department: "${department}"` });
+    }
     const result = assignReport(reportId, department, req.user?.address, city);
-    console.log(`[ASSIGN] Manual override by ${req.user?.address}: ${reportId.slice(0, 12)}… → ${department}|${city || 'no-city'}`);
+    console.log(`[ASSIGN] Manual override: ${String(reportId).slice(0, 12)}… → ${department}|${city || 'no-city'}`);
     return res.json({ success: true, assignment: result });
   } catch (e) {
     return res.status(400).json({ error: e.message });

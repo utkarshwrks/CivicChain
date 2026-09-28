@@ -1,10 +1,11 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { dataPath } from '../config/paths.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const CACHE_PATH = path.join(__dirname, '..', 'data', 'report-cache.json');
-const STATUS_PATH = path.join(__dirname, '..', 'data', 'workflow-status.json');
+const CACHE_PATH = dataPath('report-cache.json');
+const STATUS_PATH = dataPath('workflow-status.json');
 
 let cache = { reports: [], lastBlock: 0, updatedAt: 0 };
 

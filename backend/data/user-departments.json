@@ -1,92 +1,81 @@
 {
-  "06bf1ed295bb87372e976bd20bffd74e48603b52": "ROAD_DEPARTMENT",
-  "4fe72bc505597d0872acc35bd42adc114ce1e4ae": "SANITATION_DEPARTMENT",
-  "3af71b5ef4c8c950e0ff2cc17ace681ff779e3f4": {
-    "department": "ROAD_DEPARTMENT",
-    "city": "BHOPAL"
-  },
-  "b043ccd7eec6798ca700cf247051f4821dd8203d": {
-    "department": "SANITATION_DEPARTMENT",
-    "city": "INDORE"
-  },
-  "f94c82a707484d73ddcc97d3708895d1c2b81c43": "ROAD_DEPARTMENT",
-  "3b148811dd1f348291d98da23fc0d60e4a94a212": {
+  "0x3c2d7ae2f38613c1fe47691c70392b7311f463e3": {
     "department": "URBAN_DEPARTMENT",
     "city": "BHOPAL"
   },
-  "dda84bb42d92190dfe6663ef884766139c1b14d2": {
+  "0x2a0b1c9b05f96e40f77ad9bc0fa168b2a782328e": {
     "department": "GENERAL_DEPARTMENT",
     "city": "BHOPAL"
   },
-  "a7d12ef0bed59162aab1c919eb7fe6e9181384c5": {
+  "0x9811ce94881cb2cc119f40ad4d44168db1e46bbe": {
     "department": "URBAN_DEPARTMENT",
     "city": "INDORE"
   },
-  "3990ab0ac5c40d321bb6c0f3165ca91d06e84baa": {
+  "0x40b2a447abb435d3c98e307c5fe1b00670618467": {
     "department": "GENERAL_DEPARTMENT",
     "city": "INDORE"
   },
-  "683ee2668152fc818939e661a28fe05ddbc1894f": {
+  "0x9ba1ccbb66a5e211118de45a73f24fb6078a27d7": {
     "department": "URBAN_DEPARTMENT",
     "city": "JABALPUR"
   },
-  "03d78e44274c6743e3ea67cf28bfe0ed17eede2e": {
+  "0x4ca41a403bcf8ce8fc9316cfb11cbd82f8e42493": {
     "department": "GENERAL_DEPARTMENT",
     "city": "JABALPUR"
   },
-  "f1b3ab77ced0122244d9874b638068bd02cec95f": {
+  "0x23af26490aa4384c7c35c39c57913641b36b5c78": {
     "department": "URBAN_DEPARTMENT",
     "city": "GWALIOR"
   },
-  "a63a0843214560fa115c39d64bd15f1787501544": {
+  "0x311c92d315546b34cda8cd307b3d1fd1f004babf": {
     "department": "GENERAL_DEPARTMENT",
     "city": "GWALIOR"
   },
-  "784c26109f33016d280a551adec0d07ab4dc02c5": {
+  "0x2e414cec8053502cd55c139803f9afb19e81cd9a": {
     "department": "URBAN_DEPARTMENT",
     "city": "UJJAIN"
   },
-  "484ccf938a630e0e54d0ae714848771ba73cc78b": {
+  "0x364bbf941da70e378f1f7ba4cca45dfa01ed092a": {
     "department": "GENERAL_DEPARTMENT",
     "city": "UJJAIN"
   },
-  "401f041b10d99b4081edd73596889c1ff8db5154": {
+  "0xdc78843e2f66b8d2a085d597c380273077f405d4": {
     "department": "URBAN_DEPARTMENT",
     "city": "RAIPUR"
   },
-  "7a83f4bc3412c48c64b6395e27831b6a8fc7dbd8": {
+  "0x5c5171649fcac6248b4569b07456f5b336098420": {
     "department": "GENERAL_DEPARTMENT",
     "city": "RAIPUR"
   },
-  "5dbc492b5554057ada75530d3244a0503dc5c0b8": {
+  "0x8bf2fc34e0761c25abcd66aee105ec5cdf3003ec": {
     "department": "URBAN_DEPARTMENT",
     "city": "NAGPUR"
   },
-  "98647beb6de855f268d2dd24d7431685060bf812": {
+  "0x30a5cec5c2650a887f8470bdb1b9468659d5432f": {
     "department": "GENERAL_DEPARTMENT",
     "city": "NAGPUR"
   },
-  "dd1d571799c8763bb3cc4cca53b5f7c90d1612ce": {
+  "0xc9016d4f11295c3c9ae2e67d858e392799a7cf97": {
     "department": "URBAN_DEPARTMENT",
     "city": "PUNE"
   },
-  "cbe6846caf3386c0d92c59b7d56863c9e7042edc": {
+  "0x8e65fbbb0ad564b7ebbd63a0a3427c874b15d3d0": {
     "department": "GENERAL_DEPARTMENT",
     "city": "PUNE"
   },
-  "c75b4cef128e321ead73e33006fe3effa2dcaa54": {
+  "0x6acab8792c2671abf3a8c0a69950d38e89af4170": {
     "department": "URBAN_DEPARTMENT",
     "city": "DELHI"
   },
-  "106333dffe2eb775c8b4d5e1fcd928bafbe3f103": {
+  "0xcc6391a1ead635124431b32430bdca7eeffe5918": {
     "department": "GENERAL_DEPARTMENT",
     "city": "DELHI"
   },
-  "10b0a855fdc5b6aa018bacee842a50af896605bb": {
+  "0x2721fce605a5258c4d8a4ced093dea5c4306929e": {
     "department": "URBAN_DEPARTMENT",
     "city": "BENGALURU"
   },
-  "9c43880c0df7ba9342713feb51984af74e70612f": {
+  "0x2a962b83a0218ccf783c5f94dd7cf6809e3940f8": {
     "department": "GENERAL_DEPARTMENT",
     "city": "BENGALURU"
   }

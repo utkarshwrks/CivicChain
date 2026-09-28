@@ -14,10 +14,11 @@ import fs   from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { DEPARTMENTS, DEPARTMENT_DISPLAY } from './department.service.js';
+import { dataPath } from '../config/paths.js';
 
 const __dirname      = path.dirname(fileURLToPath(import.meta.url));
-const USER_DEPT_PATH = path.join(__dirname, '..', 'data', 'user-departments.json');
-const CITIES_PATH    = path.join(__dirname, '..', 'data', 'cities.json');
+const USER_DEPT_PATH = dataPath('user-departments.json');
+const CITIES_PATH    = dataPath('cities.json');
 const LOG            = '[JURISDICTION]';
 
 const DEPT_SET = new Set(DEPARTMENTS);

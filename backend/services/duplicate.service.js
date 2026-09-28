@@ -13,9 +13,10 @@ import crypto from 'crypto';
 import fs     from 'fs';
 import path   from 'path';
 import { fileURLToPath } from 'url';
+import { dataPath } from '../config/paths.js';
 
 const __dirname   = path.dirname(fileURLToPath(import.meta.url));
-const INDEX_PATH  = path.join(__dirname, '..', 'data', 'duplicate-index.json');
+const INDEX_PATH  = dataPath('duplicate-index.json');
 const LOG         = '[DUPLICATE_CHECK]';
 
 // ─── In-Memory Index (loaded from disk on startup) ───────────────────────────

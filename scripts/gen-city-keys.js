@@ -11,14 +11,10 @@
  */
 import fs   from 'fs';
 import path from 'path';
-import crypto from 'crypto';
 import { fileURLToPath } from 'url';
-import { createRequire } from 'module';
+import { Wallet } from 'ethers';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const require   = createRequire(import.meta.url);
-const elliptic  = require('elliptic');
-const ec        = new elliptic.ec('secp256k1');
 
 const ROOT          = path.join(__dirname, '..');
 const CITIES_PATH   = path.join(ROOT, 'backend', 'data', 'cities.json');
@@ -30,12 +26,10 @@ const OUT_PATH      = path.join(ROOT, 'city-keys.json');
 const AUTHORITY_DEPT = 'URBAN_DEPARTMENT';
 const MUNICIPAL_DEPT = 'GENERAL_DEPARTMENT';
 
+// Standard Ethereum wallets (EIP-55 address shown, lowercase used as the store key).
 function newWallet() {
-  const kp         = ec.genKeyPair();
-  const privateKey = kp.getPrivate('hex').padStart(64, '0');
-  const publicKey  = kp.getPublic('hex');
-  const address    = crypto.createHash('sha256').update(publicKey).digest('hex').slice(0, 40);
-  return { address, privateKey, publicKey };
+  const w = Wallet.createRandom();
+  return { address: w.address, privateKey: w.privateKey };
 }
 
 function readJson(p, fallback) {
@@ -61,12 +55,12 @@ for (const c of cities) {
   };
 
   // Seed RBAC roles
-  roles[authority.address] = 'AUTHORITY';
-  roles[municipal.address] = 'MUNICIPAL_TEAM';
+  roles[authority.address.toLowerCase()] = 'AUTHORITY';
+  roles[municipal.address.toLowerCase()] = 'MUNICIPAL_TEAM';
 
   // Seed jurisdiction (department + city)
-  depts[authority.address] = { department: AUTHORITY_DEPT, city: c.code };
-  depts[municipal.address] = { department: MUNICIPAL_DEPT, city: c.code };
+  depts[authority.address.toLowerCase()] = { department: AUTHORITY_DEPT, city: c.code };
+  depts[municipal.address.toLowerCase()] = { department: MUNICIPAL_DEPT, city: c.code };
 }
 
 fs.writeFileSync(OUT_PATH,   JSON.stringify(out,   null, 2), 'utf8');
