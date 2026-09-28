@@ -1,17 +1,32 @@
-.env
 node_modules
 
-# Secrets — generated wallet keys, never commit
+# Secrets — never commit
+.env
+.env.*
+!.env.example
 city-keys.json
 
+# Hardhat
+artifacts/
+cache/
+typechain-types/
+coverage/
+coverage.json
+deployments/localhost.json
+
+# Data-migration backups (made by scripts/migrate-data-to-ethereum.js)
+backend/data/_backup_pre_sepolia_*/
+
 # Logs
+*.log
 *-err.log
 *-run.log
 
 # Build artifacts
 frontend/dist/
+android/app/build/
+android/.gradle/
 
 # AI Memory files
 AI.md
 ai.md
-

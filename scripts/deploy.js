@@ -199,7 +199,7 @@ async function main() {
 
   console.log('');
 
-  const contractsDir = path.join(__dirname, '..', 'contracts');
+  const contractsDir = path.join(__dirname, '..', 'legacy', 'sayman-contracts');
   const contracts = [
     { file: 'ReportRegistry.js',    name: 'ReportRegistry',    version: '1.0.0' },
     { file: 'ReputationManager.js', name: 'ReputationManager', version: '1.0.0' },
