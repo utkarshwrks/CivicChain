@@ -11,6 +11,7 @@ import { getReports } from '../services/reportCache.js';
 import { enrichReports } from '../services/assignment.service.js';
 import { getPoints } from '../services/reward.service.js';
 import { getReputation } from '../services/reputation.service.js';
+import { isValidAddress } from '../utils/address.js';
 
 const allReports = () => enrichReports(getReports());
 
@@ -33,7 +34,9 @@ export const trendsController     = handler((r) => getTrends(r));
 export const insightsController   = handler((r) => generateInsights(r));
 export const nftsController       = handler((r) => getNftAnalytics(r));
 
-export const topReportersController = handler(async (reports) => {
+export const topReportersController = handler(async (all) => {
+  // Legacy (pre-Ethereum) reporter ids cannot sign in any more — history only.
+  const reports = all.filter((r) => isValidAddress(r.reporter));
   const addresses = [...new Set(reports.map((r) => r.reporter).filter(Boolean))];
   const pointsMap = {};
   const reputationMap = {};

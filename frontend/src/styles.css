@@ -1757,5 +1757,215 @@
 .seg-tab { display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.45rem 1rem; border-radius: 7px; background: none; border: none; color: var(--muted); font-size: 0.8rem; font-weight: 600; cursor: pointer; position: relative; transition: color .15s; }
 .seg-tab.active { color: var(--on-accent); }
 .seg-tab-bg { position: absolute; inset: 0; background: var(--accent); border-radius: 7px; z-index: 0; }
-.seg-tab span { position: relative; z-index: 1; display: inline-flex; align-items: center; gap: 0.4rem; }
-
+.seg-tab span:not(.seg-tab-bg) { position: relative; z-index: 1; display: inline-flex; align-items: center; gap: 0.4rem; }
+
+/* ═════════════════════════════════════════════════════════════════════════════
+   CivicChain v3 — Ethereum Sepolia + Civic Issue NFTs
+   ═════════════════════════════════════════════════════════════════════════════ */
+
+/* ── Header: actions, APK button, responsive nav ──────────────────────────── */
+.header-inner { max-width: 1280px; }
+.header-actions { display: flex; align-items: center; gap: 0.6rem; margin-left: auto; }
+.nav-burger { display: none; }
+.chip-stat { display: inline-flex; align-items: center; gap: 0.2rem; font-family: var(--mono); font-size: 0.7rem; color: var(--muted); }
+.chip-stat.nft { color: var(--accent); }
+.wallet-chip .mono { font-family: var(--mono); font-size: 0.76rem; }
+a.wallet-menu-item { text-decoration: none; }
+
+.btn-apk {
+  display: inline-flex; align-items: center; gap: 0.45rem;
+  padding: 0.42rem 0.9rem; border-radius: 8px;
+  background: linear-gradient(135deg, #19c37d, #12a067);
+  color: #04130c; font-weight: 800; font-size: 0.8rem; letter-spacing: 0.02em;
+  text-decoration: none; white-space: nowrap;
+  box-shadow: 0 0 26px rgba(25,195,125,.35);
+  border: 1px solid rgba(255,255,255,.12);
+  transition: transform 0.12s, box-shadow 0.15s;
+}
+.btn-apk:hover { transform: translateY(-1px); box-shadow: 0 0 36px rgba(25,195,125,.5); }
+.btn-apk.big { padding: 1rem 1.6rem; border-radius: 14px; font-size: 1rem; gap: 0.8rem; }
+.btn-apk.big span { display: flex; flex-direction: column; line-height: 1.15; }
+.btn-apk.big b { font-size: 1.15rem; letter-spacing: 0.06em; }
+.btn-apk.big small { font-size: 0.72rem; font-weight: 600; opacity: 0.8; font-family: var(--mono); }
+
+@media (max-width: 1080px) {
+  .nav-burger { display: inline-flex; }
+  .nav-tabs {
+    display: none; position: absolute; top: 60px; left: 0; right: 0;
+    flex-direction: column; gap: 0.2rem; padding: 0.75rem 1rem 1rem;
+    background: rgba(8, 12, 20, 0.97); border-bottom: 1px solid var(--border);
+    backdrop-filter: blur(16px);
+  }
+  .nav-tabs.open { display: flex; }
+  .nav-tab { text-align: left; padding: 0.65rem 0.8rem; font-size: 0.9rem; }
+  .tab-underline { display: none; }
+}
+@media (max-width: 640px) {
+  .header-inner { padding: 0 1rem; gap: 0.6rem; }
+  .header-apk span { display: none; }
+  .header-apk { padding: 0.42rem 0.55rem; }
+  .wallet-chip .role-badge, .wallet-chip .chip-stat { display: none; }
+  .btn-connect { padding: 0.4rem 0.7rem; font-size: 0.78rem; }
+}
+
+/* ── Alerts / toasts / helpers ─────────────────────────────────────────────── */
+.alert.warn { background: rgba(255,154,58,.08); border: 1px solid rgba(255,154,58,.3); color: #ffc38a; }
+.alert { display: flex; align-items: flex-start; gap: 0.5rem; }
+.alert svg { flex-shrink: 0; margin-top: 2px; }
+.small { font-size: 0.78rem; }
+.mono { font-family: var(--mono); }
+.btn-ghost {
+  display: inline-flex; align-items: center; gap: 0.4rem;
+  padding: 0.45rem 0.85rem; border-radius: 8px;
+  background: var(--surface2); border: 1px solid var(--border2);
+  color: var(--text); font-size: 0.8rem; font-weight: 600; cursor: pointer; text-decoration: none;
+  transition: border-color 0.15s, color 0.15s;
+}
+.btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
+.btn-ghost:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-ghost.small { padding: 0.3rem 0.6rem; font-size: 0.74rem; }
+.field-select.small { width: auto; padding: 0.4rem 0.6rem; font-size: 0.8rem; }
+.upgrade-toast {
+  position: fixed; top: 70px; left: 50%; transform: translateX(-50%); z-index: 150;
+  display: flex; align-items: center; gap: 0.5rem; max-width: calc(100vw - 2rem);
+  padding: 0.6rem 0.8rem; border-radius: 10px; font-size: 0.82rem;
+  background: var(--surface); border: 1px solid rgba(25,195,125,.4); color: var(--text);
+  box-shadow: 0 12px 40px rgba(0,0,0,.5);
+}
+.upgrade-toast svg { color: var(--accent2); }
+.server-setup { min-height: 100dvh; display: flex; align-items: center; justify-content: center; padding: 1rem; }
+
+/* ── NFT status badge ──────────────────────────────────────────────────────── */
+.nft-badge {
+  display: inline-flex; align-items: center; gap: 0.3rem;
+  padding: 0.2rem 0.55rem; border-radius: 999px; border: 1px solid;
+  font-family: var(--mono); font-size: 0.68rem; font-weight: 600; white-space: nowrap;
+}
+.nft-badge.minted { color: var(--accent); border-color: rgba(255,154,58,.45); background: rgba(255,154,58,.12); cursor: default; }
+button.nft-badge.minted { cursor: pointer; }
+button.nft-badge.minted:hover { background: rgba(255,154,58,.22); box-shadow: 0 0 14px rgba(255,154,58,.35); }
+.nft-badge.pending { color: #93c5fd; border-color: rgba(59,130,246,.4); background: rgba(59,130,246,.1); }
+.nft-badge.failed { color: #fca5a5; border-color: rgba(239,68,68,.4); background: rgba(239,68,68,.1); }
+.nft-badge.legacy { color: var(--muted); border-color: var(--border); background: transparent; opacity: 0.8; }
+.fcard-nft, .gov-card-nft { margin: -0.2rem 0 0.6rem; }
+
+/* ── NFT image ─────────────────────────────────────────────────────────────── */
+.nft-img { position: relative; width: 100%; aspect-ratio: 4 / 3; background: #0a0c10; overflow: hidden; }
+.nft-img img { width: 100%; height: 100%; object-fit: cover; display: block; transition: opacity 0.3s; }
+.nft-img.large { border-radius: 12px; border: 1px solid var(--border); }
+.nft-img-fallback { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.4rem; color: var(--muted); font-size: 0.75rem; }
+
+/* ── NFT cards / grid ──────────────────────────────────────────────────────── */
+.nft-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 1rem; }
+.nft-card {
+  background: var(--surface-grad); border: 1px solid var(--border); border-radius: 14px; overflow: hidden;
+  cursor: pointer; transition: border-color 0.15s, box-shadow 0.2s;
+}
+.nft-card:hover { border-color: rgba(255,154,58,.5); box-shadow: 0 0 30px rgba(255,154,58,.15); }
+.nft-card.skel { cursor: default; }
+.nft-card.pending-card { cursor: default; border-style: dashed; }
+.nft-card-body { padding: 0.8rem 0.9rem 0.9rem; display: flex; flex-direction: column; gap: 0.4rem; }
+.nft-card-top { display: flex; align-items: center; justify-content: space-between; gap: 0.4rem; }
+.nft-token { font-family: var(--mono); font-weight: 700; color: var(--accent); font-size: 0.85rem; }
+.nft-cur { font-family: var(--mono); font-size: 0.62rem; padding: 0.12rem 0.45rem; border-radius: 999px; border: 1px solid var(--border2); color: var(--muted); }
+.nft-cur.status-resolved { color: var(--success); border-color: rgba(25,195,125,.4); }
+.nft-cur.status-verified { color: #93c5fd; border-color: rgba(59,130,246,.4); }
+.nft-cur.status-in_progress { color: #d8b4fe; border-color: rgba(168,85,247,.4); }
+.nft-card-cat { font-weight: 600; font-size: 0.9rem; }
+.nft-sev { color: var(--muted); font-weight: 500; font-size: 0.8rem; }
+.nft-card-meta { display: flex; justify-content: space-between; gap: 0.5rem; font-size: 0.72rem; color: var(--muted); }
+.nft-card-meta span { display: inline-flex; align-items: center; gap: 0.25rem; }
+.nft-card-meta.mono { font-family: var(--mono); font-size: 0.66rem; }
+.nft-card-links { display: flex; gap: 0.8rem; margin-top: 0.2rem; }
+.nft-card-links a { font-size: 0.72rem; color: var(--accent); text-decoration: none; display: inline-flex; align-items: center; gap: 0.25rem; }
+.nft-card-links a:hover { text-decoration: underline; }
+
+/* ── NFT detail modal ──────────────────────────────────────────────────────── */
+.modal-panel.nft-modal { max-width: 860px; max-height: calc(100dvh - 2rem); overflow-y: auto; }
+.nft-modal-grid { display: grid; grid-template-columns: 1fr 1.15fr; gap: 1.2rem; align-items: start; }
+.nft-row { display: flex; justify-content: space-between; gap: 1rem; padding: 0.42rem 0; border-bottom: 1px dashed var(--border); font-size: 0.82rem; }
+.nft-row .k { color: var(--muted); }
+.nft-row .v { font-family: var(--mono); font-size: 0.76rem; text-align: right; display: inline-flex; align-items: center; gap: 0.3rem; word-break: break-all; }
+.nft-row a { color: var(--accent); text-decoration: none; }
+.nft-verify { display: flex; align-items: center; gap: 0.4rem; font-size: 0.76rem; padding: 0.45rem 0.6rem; border-radius: 8px; margin-bottom: 0.6rem; background: var(--surface2); color: var(--muted); }
+.nft-verify.ok { color: var(--success); background: rgba(25,195,125,.08); border: 1px solid rgba(25,195,125,.3); }
+.nft-verify.warn { color: #ffc38a; background: rgba(255,154,58,.07); }
+.nft-reason { margin-top: 1rem; font-size: 0.85rem; color: #cfd2d8; font-style: italic; }
+.nft-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 1rem; }
+.nft-footnote { margin-top: 1rem; font-size: 0.72rem; color: var(--muted); line-height: 1.5; }
+@media (max-width: 720px) { .nft-modal-grid { grid-template-columns: 1fr; } }
+
+/* ── NFT reward card (Submit outcome) ──────────────────────────────────────── */
+.nrc { position: relative; overflow: hidden; margin-top: 1rem; padding: 1.1rem 1.2rem; border-radius: 14px; border: 1px solid var(--border); background: var(--surface-grad); }
+.nrc p { font-size: 0.85rem; color: #cfd2d8; margin: 0.35rem 0; line-height: 1.5; }
+.nrc code { font-family: var(--mono); font-size: 0.78rem; color: var(--accent); }
+.nrc-head { display: flex; align-items: center; gap: 0.5rem; font-weight: 700; font-size: 1.02rem; margin-bottom: 0.3rem; }
+.nrc-success { border-color: rgba(25,195,125,.45); box-shadow: 0 0 40px rgba(25,195,125,.12); }
+.nrc-success .nrc-head { color: var(--success); }
+.nrc-title { display: flex; align-items: center; gap: 0.4rem; font-weight: 700; color: var(--accent); margin-bottom: 0.9rem; }
+.nrc-grid { display: grid; grid-template-columns: 180px 1fr; gap: 1rem; }
+.nrc-img { border-radius: 10px; border: 1px solid rgba(255,154,58,.35); box-shadow: 0 0 24px rgba(255,154,58,.2); aspect-ratio: 1 / 1; }
+.nrc-fields { display: flex; flex-direction: column; }
+.nrc-field { display: flex; justify-content: space-between; gap: 0.8rem; padding: 0.3rem 0; border-bottom: 1px dashed var(--border); font-size: 0.8rem; }
+.nrc-field .k { color: var(--muted); }
+.nrc-field .v { font-family: var(--mono); font-size: 0.75rem; display: inline-flex; align-items: center; gap: 0.3rem; }
+.nrc-field a { color: var(--accent); text-decoration: none; }
+.nrc-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 1rem; }
+.nrc-checklist { list-style: none; display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.35rem 1rem; margin-top: 1rem; font-size: 0.8rem; color: var(--success); }
+.nrc-checklist li { display: flex; align-items: center; gap: 0.35rem; }
+.nrc-offchain { display: flex; flex-wrap: wrap; gap: 0.35rem 0.9rem; margin-top: 0.9rem; padding-top: 0.75rem; border-top: 1px solid var(--border); font-size: 0.78rem; color: var(--muted); }
+.nrc-offchain span { display: inline-flex; align-items: center; gap: 0.25rem; }
+.nrc-pending { border-color: rgba(59,130,246,.45); }
+.nrc-pending .nrc-head { color: #93c5fd; }
+.nrc-pending .btn-ghost, .nrc-failed .btn-primary, .nrc-reject .btn-ghost { margin: 0.5rem 0.5rem 0 0; }
+.nrc-failed { border-color: rgba(255,154,58,.45); }
+.nrc-failed .nrc-head { color: var(--accent); }
+.nrc-reject { border-color: rgba(239,68,68,.4); }
+.nrc-reject .nrc-head { color: #fca5a5; }
+@media (max-width: 560px) { .nrc-grid { grid-template-columns: 1fr; } .nrc-img { max-width: 220px; } .nrc-checklist { grid-template-columns: 1fr; } }
+
+/* ── Submit pipeline states ────────────────────────────────────────────────── */
+.pipe-step.failed .pipe-node { background: rgba(239,68,68,.15); border-color: rgba(239,68,68,.6); color: #fca5a5; }
+.pipe-step.failed .t { color: #fca5a5; }
+.pipe-step.skipped { opacity: 0.4; }
+.pipe-link { display: inline-flex; align-items: center; gap: 0.25rem; margin-top: 0.25rem; font-size: 0.7rem; color: var(--accent); text-decoration: none; }
+
+/* ── Explorer ──────────────────────────────────────────────────────────────── */
+.explorer-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.75rem; margin-bottom: 1.2rem; }
+.explorer-filters { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.net-cell .v a { color: var(--accent); text-decoration: none; }
+.net-cell .v { display: inline-flex; align-items: center; gap: 0.3rem; }
+.mint-table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 12px; }
+.mint-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; min-width: 640px; }
+.mint-table th { text-align: left; padding: 0.65rem 0.8rem; font-family: var(--mono); font-size: 0.68rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); background: var(--surface2); }
+.mint-table td { padding: 0.6rem 0.8rem; border-top: 1px solid var(--border); }
+.mint-table tbody tr { cursor: pointer; }
+.mint-table tbody tr:hover { background: rgba(255,154,58,.05); }
+.mint-table a { color: var(--accent); text-decoration: none; display: inline-flex; align-items: center; gap: 0.25rem; }
+.pager { display: flex; align-items: center; justify-content: center; gap: 1rem; margin-top: 1.2rem; }
+
+/* ── Profile additions ─────────────────────────────────────────────────────── */
+.profile-addr { display: inline-flex; align-items: center; gap: 0.4rem; word-break: break-all; }
+.profile-info a { color: var(--accent); text-decoration: none; }
+.badge-item.nft.unlocked { border-color: rgba(255,154,58,.5); color: var(--accent); box-shadow: 0 0 18px rgba(255,154,58,.15); }
+.lb-nft { display: inline-flex; align-items: center; gap: 0.2rem; font-family: var(--mono); font-size: 0.72rem; color: var(--accent); margin-left: auto; margin-right: 0.75rem; }
+
+/* ── Analytics: 7 KPI cards ────────────────────────────────────────────────── */
+.an-kpis { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+
+/* ── Home: contract link + APK panel ───────────────────────────────────────── */
+.cc-contract-link { display: inline-flex; align-items: center; gap: 0.4rem; margin-top: 1.5rem; color: var(--accent); font-family: var(--mono); font-size: 0.8rem; text-decoration: none; }
+.cc-contract-link:hover { text-decoration: underline; }
+.cc-apk-panel {
+  display: flex; align-items: center; justify-content: space-between; gap: 2rem; flex-wrap: wrap;
+  padding: 2rem 2.2rem; border-radius: 20px;
+  background: radial-gradient(120% 140% at 0% 0%, rgba(25,195,125,.14), transparent 55%), var(--surface-grad);
+  border: 1px solid rgba(25,195,125,.35); box-shadow: 0 0 60px rgba(25,195,125,.1);
+}
+.cc-apk-copy { flex: 1 1 360px; }
+.cc-apk-sub { color: #cfd2d8; line-height: 1.6; margin-top: 0.8rem; max-width: 560px; }
+.cc-apk-points { display: flex; flex-wrap: wrap; gap: 0.5rem 1.2rem; margin-top: 1rem; font-size: 0.82rem; color: var(--muted); }
+.cc-apk-points span { display: inline-flex; align-items: center; gap: 0.35rem; }
+.cc-apk-points svg { color: var(--accent2); }
+@media (max-width: 640px) { .cc-apk-panel { padding: 1.4rem; } .btn-apk.big { width: 100%; justify-content: center; } }
+@media (min-width: 1100px) { .an-kpis { grid-template-columns: repeat(7, 1fr); } .an-kpi .l { font-size: 0.62rem; } }

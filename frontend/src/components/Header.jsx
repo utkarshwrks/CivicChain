@@ -1,17 +1,22 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Wallet, LogOut, ChevronDown, Copy, CheckCircle2, ShieldCheck, Hammer, Crown } from 'lucide-react';
+import {
+  Wallet, LogOut, ChevronDown, Copy, CheckCircle2, ShieldCheck, Hammer, Crown,
+  ExternalLink, Gem, Star, Download, Menu, X,
+} from 'lucide-react';
 import { useWallet } from '../hooks/useWallet.jsx';
 import WalletModal from './WalletModal.jsx';
+import { shortAddress, addressUrl } from '../utils/format.js';
+import { APK_URL, isNativeApp } from '../utils/platform.js';
 
 // Tabs per role
-const ROLE_TABS = {
+export const ROLE_TABS = {
   CITIZEN:        ['Home', 'Feed', 'Submit', 'Analytics', 'Explorer', 'Profile'],
   AUTHORITY:      ['Home', 'Feed', 'Authority', 'Analytics', 'Explorer', 'Profile'],
   MUNICIPAL_TEAM: ['Home', 'Feed', 'Municipal', 'Analytics', 'Explorer', 'Profile'],
   ADMIN:          ['Home', 'Feed', 'Submit', 'Analytics', 'Explorer', 'Profile', 'Authority', 'Municipal', 'Admin'],
 };
-const DEFAULT_TABS = ['Home', 'Feed', 'Submit', 'Analytics', 'Explorer', 'Profile'];
+export const DEFAULT_TABS = ['Home', 'Feed', 'Submit', 'Analytics', 'Explorer', 'Profile'];
 
 const ROLE_META = {
   CITIZEN:        { label: 'Citizen',    cls: 'citizen',   icon: null },
@@ -20,10 +25,21 @@ const ROLE_META = {
   ADMIN:          { label: 'Admin',      cls: 'admin',     icon: Crown },
 };
 
+export function DownloadApkButton({ className = '', compact = false }) {
+  if (isNativeApp()) return null;
+  return (
+    <a className={`btn-apk ${className}`} href={APK_URL} download="CivicChain.apk" title="Download the CivicChain Android app (APK)">
+      <Download size={14} strokeWidth={2.6} />
+      <span>{compact ? 'APK' : 'Download APK'}</span>
+    </a>
+  );
+}
+
 export default function Header({ tab, setTab }) {
-  const { wallet, balance, reputation, role, disconnect } = useWallet();
+  const { wallet, reputation, nftCount, role, disconnect } = useWallet();
   const [showModal, setShowModal] = useState(false);
   const [showMenu,  setShowMenu]  = useState(false);
+  const [mobileNav, setMobileNav] = useState(false);
   const [copied,    setCopied]    = useState(false);
 
   const tabs     = role ? (ROLE_TABS[role] || DEFAULT_TABS) : DEFAULT_TABS;
@@ -31,18 +47,16 @@ export default function Header({ tab, setTab }) {
   const RoleIcon = roleMeta?.icon;
 
   function copyAddr() {
-    navigator.clipboard.writeText(wallet.address);
+    navigator.clipboard?.writeText(wallet.address);
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
   }
 
-  // If current tab no longer in role's tabs, switch to Feed
   function handleTabChange(t) {
     setTab(t);
     setShowMenu(false);
+    setMobileNav(false);
   }
-
-  const short = addr => addr ? `${addr.slice(0, 6)}…${addr.slice(-4)}` : '';
 
   return (
     <>
@@ -55,7 +69,7 @@ export default function Header({ tab, setTab }) {
           </button>
 
           {/* Role-based Tabs */}
-          <nav className="nav-tabs">
+          <nav className={`nav-tabs ${mobileNav ? 'open' : ''}`}>
             {tabs.map(t => (
               <button
                 key={t}
@@ -70,59 +84,72 @@ export default function Header({ tab, setTab }) {
             ))}
           </nav>
 
-          {/* Wallet + Role */}
-          {wallet ? (
-            <div className="wallet-chip-wrap">
-              <button className="wallet-chip" onClick={() => setShowMenu(v => !v)}>
-                <span className="wallet-dot" />
-                <span>{short(wallet.address)}</span>
-                {roleMeta && (
-                  <span className={`role-badge ${roleMeta.cls}`}>
-                    {RoleIcon && <RoleIcon size={9} />}
-                    {roleMeta.label}
-                  </span>
-                )}
-                <ChevronDown size={12} />
-              </button>
-              <AnimatePresence>
-                {showMenu && (
-                  <motion.div
-                    className="wallet-menu"
-                    initial={{ opacity: 0, y: -8, scale: 0.95 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: -8, scale: 0.95 }}
-                    transition={{ duration: 0.12 }}
-                  >
-                    <div className="wallet-menu-addr">
-                      <code>{wallet.address}</code>
-                      <button className="icon-btn small" onClick={copyAddr}>
-                        {copied ? <CheckCircle2 size={12}/> : <Copy size={12}/>}
-                      </button>
-                    </div>
-                    {roleMeta && (
-                      <div className="wallet-menu-role">
-                        <span className={`role-badge ${roleMeta.cls}`} style={{ fontSize: '0.75rem', padding: '0.2rem 0.6rem' }}>
-                          {RoleIcon && <RoleIcon size={11} />}
-                          {roleMeta.label}
-                        </span>
+          <div className="header-actions">
+            <DownloadApkButton className="header-apk" />
+
+            {/* Wallet + Role */}
+            {wallet ? (
+              <div className="wallet-chip-wrap">
+                <button className="wallet-chip" onClick={() => setShowMenu(v => !v)} aria-label="Wallet menu">
+                  <span className="wallet-dot" />
+                  <span className="mono">{shortAddress(wallet.address)}</span>
+                  {roleMeta && (
+                    <span className={`role-badge ${roleMeta.cls}`}>
+                      {RoleIcon && <RoleIcon size={9} />}
+                      {roleMeta.label}
+                    </span>
+                  )}
+                  <span className="chip-stat" title="Reputation"><Star size={10} />{reputation}</span>
+                  <span className="chip-stat nft" title="Civic Issue NFTs"><Gem size={10} />{nftCount}</span>
+                  <ChevronDown size={12} />
+                </button>
+                <AnimatePresence>
+                  {showMenu && (
+                    <motion.div
+                      className="wallet-menu"
+                      initial={{ opacity: 0, y: -8, scale: 0.95 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: -8, scale: 0.95 }}
+                      transition={{ duration: 0.12 }}
+                    >
+                      <div className="wallet-menu-addr">
+                        <code>{wallet.address}</code>
                       </div>
-                    )}
-                    <div className="wallet-menu-stats">
-                      <span>Balance <b>{balance}</b></span>
-                      <span>Rep <b>{reputation}</b></span>
-                    </div>
-                    <button className="wallet-menu-item danger" onClick={() => { setShowMenu(false); disconnect(); }}>
-                      <LogOut size={13} /> Disconnect
-                    </button>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-          ) : (
-            <button className="btn-connect" onClick={() => setShowModal(true)}>
-              <Wallet size={14} /> Connect Wallet
+                      {roleMeta && (
+                        <div className="wallet-menu-role">
+                          <span className={`role-badge ${roleMeta.cls}`} style={{ fontSize: '0.75rem', padding: '0.2rem 0.6rem' }}>
+                            {RoleIcon && <RoleIcon size={11} />}
+                            {roleMeta.label}
+                          </span>
+                        </div>
+                      )}
+                      <div className="wallet-menu-stats">
+                        <span>Reputation <b>{reputation}</b></span>
+                        <span>Civic NFTs <b>{nftCount}</b></span>
+                      </div>
+                      <button className="wallet-menu-item" onClick={copyAddr}>
+                        {copied ? <CheckCircle2 size={13} /> : <Copy size={13} />} {copied ? 'Copied' : 'Copy address'}
+                      </button>
+                      <a className="wallet-menu-item" href={addressUrl(wallet.address)} target="_blank" rel="noopener noreferrer">
+                        <ExternalLink size={13} /> View on Etherscan
+                      </a>
+                      <button className="wallet-menu-item danger" onClick={() => { setShowMenu(false); disconnect(); }}>
+                        <LogOut size={13} /> Disconnect
+                      </button>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            ) : (
+              <button className="btn-connect" onClick={() => setShowModal(true)}>
+                <Wallet size={14} /> Connect Wallet
+              </button>
+            )}
+
+            <button className="icon-btn nav-burger" onClick={() => setMobileNav(v => !v)} aria-label="Toggle navigation">
+              {mobileNav ? <X size={18} /> : <Menu size={18} />}
             </button>
-          )}
+          </div>
         </div>
       </header>
 

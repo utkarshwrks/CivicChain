@@ -2,15 +2,39 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
   BarChart3, TrendingUp, TrendingDown, MapPin, Award, Lightbulb, CheckCircle2,
-  AlertCircle, Loader2, Zap, CalendarDays, Flame, RefreshCw,
+  AlertCircle, Loader2, Zap, CalendarDays, Flame, RefreshCw, Gem, BadgeCheck, Building2,
 } from 'lucide-react';
 import { api } from '../utils/api.js';
 import { CountUp, Donut, LiveBadge } from '../components/ui.jsx';
 
 const CAT_COLOR = {
   ROAD_DAMAGE: '#f97316', FLOOD: '#3b82f6', FIRE: '#ef4444', STREETLIGHT: '#eab308',
-  GARBAGE: '#84cc16', WATER_LEAK: '#06b6d4', UNSAFE_BUILDING: '#a855f7', OTHER: '#8a8f98',
+  GARBAGE: '#84cc16', WATER_LEAK: '#06b6d4', WATER_LEAKAGE: '#06b6d4', SEWAGE: '#14b8a6',
+  PUBLIC_SAFETY: '#f43f5e', UNSAFE_BUILDING: '#a855f7', OTHER: '#8a8f98',
 };
+const CITY_COLOR = '#FF9A3A';
+
+function Bars({ data, colorOf, testId }) {
+  const entries = Object.entries(data || {}).sort((a, b) => b[1] - a[1]);
+  const max = Math.max(1, ...entries.map(([, v]) => v));
+  const sum = entries.reduce((a, [, v]) => a + v, 0) || 1;
+  if (entries.length === 0) return <p className="muted">No Civic NFTs minted yet.</p>;
+  return (
+    <div data-testid={testId}>
+      {entries.map(([k, v], i) => (
+        <div key={k} className="hbar">
+          <div className="hbar-top">
+            <span className="hbar-name"><span className="sw" style={{ background: colorOf(k) }} />{k.replace(/_/g, ' ')}</span>
+            <span className="hbar-val">{v} · {Math.round((v / sum) * 100)}%</span>
+          </div>
+          <div className="hbar-track">
+            <motion.div className="hbar-fill" style={{ background: colorOf(k) }} initial={{ width: 0 }} whileInView={{ width: `${(v / max) * 100}%` }} viewport={{ once: true }} transition={{ duration: 0.9, delay: 0.1 + i * 0.07, ease: [0.16, 1, 0.3, 1] }} />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
 const SEV_COLOR = { LOW: '#19c37d', MEDIUM: '#FF9A3A', HIGH: '#ef4444', CRITICAL: '#a855f7' };
 const MEDALS = ['🥇', '🥈', '🥉'];
 const short = (a) => (a ? `${a.slice(0, 6)}…${a.slice(-4)}` : '—');
@@ -33,14 +57,17 @@ export default function AnalyticsPage() {
   const [hotspots, setHotspots]     = useState([]);
   const [trends, setTrends]         = useState(null);
   const [insights, setInsights]     = useState([]);
+  const [nftStats, setNftStats]     = useState(null);
 
   async function load(silent = false) {
     silent ? setRefreshing(true) : setLoading(true);
     try {
-      const [o, c, s, t, h, tr, i] = await Promise.allSettled([
+      const [o, c, s, t, h, tr, i, n] = await Promise.allSettled([
         api.analyticsOverview(), api.analyticsCategories(), api.analyticsSeverity(),
         api.analyticsTopReporters(), api.analyticsHotspots(), api.analyticsTrends(), api.analyticsInsights(),
+        api.analyticsNfts(),
       ]);
+      if (n.status === 'fulfilled')  setNftStats(n.value);
       if (o.status === 'fulfilled')  setOverview(o.value);
       if (c.status === 'fulfilled')  setCategories(c.value || {});
       if (s.status === 'fulfilled')  setSeverity(s.value || {});
@@ -69,7 +96,11 @@ export default function AnalyticsPage() {
     { v: overview?.verifiedReports ?? 0, l: 'Verified',        c: '#a855f7', ic: Zap, pct: false },
     { v: overview?.resolvedReports ?? 0, l: 'Resolved',        c: '#19c37d', ic: CheckCircle2, pct: false },
     { v: overview?.resolutionRate ?? 0,  l: 'Resolution Rate', c: '#06b6d4', ic: (overview?.resolutionRate ?? 0) >= 50 ? TrendingUp : TrendingDown, pct: true },
+    { v: nftStats?.totalNFTs ?? 0,       l: 'Total Civic NFTs', c: '#FF9A3A', ic: Gem, pct: false },
+    { v: nftStats?.mintSuccessRate ?? 0, l: 'NFT Minting Success Rate', c: '#19c37d', ic: BadgeCheck, pct: true, na: nftStats?.mintSuccessRate == null },
   ];
+  const nftSevSegments = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'].filter((k) => nftStats?.bySeverity?.[k]).map((k) => ({ label: k, value: nftStats.bySeverity[k], color: SEV_COLOR[k] }));
+  const nftSevTotal = nftSevSegments.reduce((a, x) => a + x.value, 0);
 
   return (
     <div className="page">
@@ -79,7 +110,7 @@ export default function AnalyticsPage() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <h1 className="cc-dash-title">Analytics</h1><LiveBadge label="REAL-TIME" />
           </div>
-          <p className="cc-dash-sub">On-chain insights across categories, severity, hotspots & contributors.</p>
+          <p className="cc-dash-sub">Civic insights across categories, severity, hotspots, contributors and Civic Issue NFTs.</p>
         </div>
         <button className="cc-refresh" onClick={() => load(true)} disabled={refreshing}>
           <RefreshCw size={13} className={refreshing ? 'spin' : ''} /> {refreshing ? 'Syncing' : 'Refresh'}
@@ -94,7 +125,7 @@ export default function AnalyticsPage() {
             return (
               <motion.div key={k.l} className="an-kpi" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.07 }}>
                 <div className="ic" style={{ background: k.c + '22', color: k.c }}><Ic size={18} /></div>
-                <span className="v" style={{ color: k.c }}><CountUp value={k.v} suffix={k.pct ? '%' : ''} /></span>
+                <span className="v" style={{ color: k.c }}>{k.na ? '—' : <CountUp value={k.v} suffix={k.pct ? '%' : ''} />}</span>
                 <span className="l">{k.l}</span>
               </motion.div>
             );
@@ -157,6 +188,34 @@ export default function AnalyticsPage() {
           )}
         </Section>
       </div>
+
+      {/* Civic Issue NFTs */}
+      <div className="an-grid thirds">
+        <Section className="an-card">
+          <div className="an-card-head"><Gem size={16} style={{ color: 'var(--accent)' }} /><h3>NFTs by Category</h3><span className="badge">{nftStats?.totalNFTs ?? 0} minted</span></div>
+          <Bars data={nftStats?.byCategory} colorOf={(k) => CAT_COLOR[k] || CAT_COLOR.OTHER} testId="nft-by-category" />
+        </Section>
+        <Section className="an-card" delay={0.06}>
+          <div className="an-card-head"><Zap size={16} style={{ color: 'var(--accent)' }} /><h3>NFTs by Severity</h3></div>
+          {nftSevTotal === 0 ? <p className="muted">No Civic NFTs minted yet.</p> : (
+            <div className="donut-block">
+              <Donut segments={nftSevSegments} size={150} stroke={18} center={<><span className="donut-center-v"><CountUp value={nftSevTotal} /></span><span className="donut-center-l">NFTs</span></>} />
+              <div className="legend">
+                {nftSevSegments.map((x) => (
+                  <div key={x.label} className="legend-row"><span className="sw" style={{ background: x.color }} /><span className="nm">{x.label}</span><span className="vl" style={{ color: x.color }}>{x.value}</span></div>
+                ))}
+              </div>
+            </div>
+          )}
+        </Section>
+      </div>
+      <Section className="an-card" delay={0.04}>
+        <div className="an-card-head"><Building2 size={16} style={{ color: 'var(--accent)' }} /><h3>NFTs by City</h3>
+          {nftStats && <span className="badge">{nftStats.pending} pending · {nftStats.failed} failed</span>}
+        </div>
+        <Bars data={nftStats?.byCity} colorOf={() => CITY_COLOR} testId="nft-by-city" />
+      </Section>
+      <div style={{ height: 20 }} />
 
       {/* Trends + Hotspots */}
       <div className="an-grid thirds">

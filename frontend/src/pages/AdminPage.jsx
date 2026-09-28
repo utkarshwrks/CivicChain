@@ -3,8 +3,10 @@ import { motion } from 'framer-motion';
 import {
   Crown, Users, BarChart3, ShieldCheck, Hammer, Building2,
   Loader2, AlertTriangle, CheckCircle2, XCircle,
-  RefreshCw, UserPlus, TrendingUp,
+  RefreshCw, UserPlus, TrendingUp, Gem, Wallet, ExternalLink,
 } from 'lucide-react';
+import { isAddress } from 'ethers';
+import { addressUrl, shortAddress } from '../utils/format.js';
 import { api } from '../utils/api.js';
 import { useWallet } from '../hooks/useWallet.jsx';
 
@@ -80,6 +82,10 @@ function UsersTab() {
   async function handleAssign(e) {
     e.preventDefault();
     if (!newAddr.trim()) return;
+    if (!/^0x[0-9a-fA-F]{40}$/.test(newAddr.trim()) || !isAddress(newAddr.trim().toLowerCase())) {
+      setAssignMsg({ ok: false, msg: 'Enter a valid 0x Ethereum address (42 characters).' });
+      return;
+    }
     setAssigning(true); setAssignMsg(null);
     try {
       // Role + optional department + city in one call
@@ -110,8 +116,8 @@ function UsersTab() {
         <form className="admin-assign-form" onSubmit={handleAssign}>
           <input
             type="text" className="admin-assign-input"
-            placeholder="Wallet address (40-char hex)"
-            value={newAddr} onChange={e => setNewAddr(e.target.value)} maxLength={40}
+            placeholder="Wallet address (0x…)"
+            value={newAddr} onChange={e => setNewAddr(e.target.value.trim())} maxLength={42}
           />
           <select className="admin-assign-select" value={newRole} onChange={e => setNewRole(e.target.value)}>
             {VALID_ROLES.map(r => <option key={r} value={r}>{r}</option>)}
@@ -202,20 +208,40 @@ function UsersTab() {
 function MetricsTab() {
   const [overview,  setOverview]  = useState(null);
   const [deptStats, setDeptStats] = useState(null);
+  const [nftStats,  setNftStats]  = useState(null);
+  const [chain,     setChain]     = useState(null);
   const [loading,   setLoading]   = useState(true);
+  const [retrying,  setRetrying]  = useState(false);
+  const [retryMsg,  setRetryMsg]  = useState(null);
 
-  useEffect(() => {
-    (async () => {
-      setLoading(true);
-      const [ov, da] = await Promise.allSettled([
-        api.analyticsOverview(),
-        api.deptAnalytics(),
-      ]);
-      if (ov.status === 'fulfilled') setOverview(ov.value);
-      if (da.status === 'fulfilled') setDeptStats(da.value.analytics);
-      setLoading(false);
-    })();
+  const load = useCallback(async () => {
+    setLoading(true);
+    const [ov, da, nf, ch] = await Promise.allSettled([
+      api.analyticsOverview(),
+      api.deptAnalytics(),
+      api.analyticsNfts(),
+      api.chainStatus(),
+    ]);
+    if (ov.status === 'fulfilled') setOverview(ov.value);
+    if (da.status === 'fulfilled') setDeptStats(da.value.analytics);
+    if (nf.status === 'fulfilled') setNftStats(nf.value);
+    if (ch.status === 'fulfilled') setChain(ch.value);
+    setLoading(false);
   }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  async function retryFailed() {
+    setRetrying(true); setRetryMsg(null);
+    try {
+      const r = await api.retryFailed();
+      const minted = (r.results || []).filter((x) => x.status === 'NFT_MINTED').length;
+      setRetryMsg({ ok: true, msg: `Retried ${r.total} failed mint(s): ${minted} minted.` });
+      await load();
+    } catch (e) {
+      setRetryMsg({ ok: false, msg: e.message });
+    } finally { setRetrying(false); }
+  }
 
   if (loading) {
     return <div className="center-loader"><Loader2 size={28} className="spin" /><span>Loading metrics…</span></div>;
@@ -242,6 +268,56 @@ function MetricsTab() {
           </div>
         ))}
       </div>
+
+      {/* Civic Issue NFTs */}
+      <h3 className="admin-section-title" style={{ marginTop: '1.75rem' }}>
+        <Gem size={13} style={{ display: 'inline', marginRight: '0.35rem' }} /> Civic Issue NFTs · Ethereum Sepolia
+      </h3>
+      {chain?.lowBalance && (
+        <div className="alert warn" style={{ marginBottom: '0.75rem' }} data-testid="low-balance">
+          <AlertTriangle size={14} />
+          <span>Minter balance is low ({chain.minterBalanceEth} Sepolia ETH). Top up {shortAddress(chain.backendMinterAddress)} from a free Sepolia faucet so mints keep working.</span>
+        </div>
+      )}
+      {chain && !chain.ready && (
+        <div className="alert warn" style={{ marginBottom: '0.75rem' }}>
+          <AlertTriangle size={14} /><span>Minting not ready: {(chain.issues || []).join(' · ') || chain.blocking?.join(', ')}</span>
+        </div>
+      )}
+      <div className="gov-metrics-grid">
+        {[
+          { label: 'Minted',  val: nftStats?.minted  ?? 0, color: '#FF9A3A' },
+          { label: 'Pending', val: nftStats?.pending ?? 0, color: '#3b82f6' },
+          { label: 'Failed',  val: nftStats?.failed  ?? 0, color: '#ef4444' },
+          { label: 'Success', val: nftStats?.mintSuccessRate == null ? '—' : nftStats.mintSuccessRate + '%', color: '#19c37d' },
+          { label: 'Minter ETH', val: chain?.minterBalanceEth != null ? Number(chain.minterBalanceEth).toFixed(4) : '—', color: chain?.lowBalance ? '#ef4444' : '#19c37d' },
+        ].map(s => (
+          <div key={s.label} className="gov-metric-card">
+            <span className="gov-metric-val" style={{ color: s.color }}>{s.val}</span>
+            <span className="gov-metric-label">{s.label}</span>
+          </div>
+        ))}
+      </div>
+      <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginTop: '0.75rem' }}>
+        <button className="admin-assign-btn" onClick={retryFailed} disabled={retrying || !(nftStats?.failed > 0)}>
+          {retrying ? <Loader2 size={14} className="spin" /> : <RefreshCw size={14} />} Retry failed mints
+        </button>
+        {chain?.backendMinterAddress && (
+          <a className="small" href={addressUrl(chain.backendMinterAddress)} target="_blank" rel="noopener noreferrer">
+            <Wallet size={12} /> Minter {shortAddress(chain.backendMinterAddress)} <ExternalLink size={11} />
+          </a>
+        )}
+        {chain?.contractAddress && (
+          <a className="small" href={addressUrl(chain.contractAddress)} target="_blank" rel="noopener noreferrer">
+            <Gem size={12} /> Contract {shortAddress(chain.contractAddress)} <ExternalLink size={11} />
+          </a>
+        )}
+      </div>
+      {retryMsg && (
+        <div className={`gov-result ${retryMsg.ok ? 'ok' : 'err'}`} style={{ marginTop: '0.5rem' }}>
+          {retryMsg.ok ? <CheckCircle2 size={13} /> : <XCircle size={13} />} {retryMsg.msg}
+        </div>
+      )}
 
       {/* Department Distribution */}
       <h3 className="admin-section-title" style={{ marginTop: '1.75rem' }}>
@@ -300,7 +376,7 @@ export default function AdminPage() {
             <Crown size={22} className="gov-title-icon admin" />
             <h1 className="gov-title">Admin Dashboard</h1>
           </div>
-          <p className="gov-sub">Manage user roles, department assignments, and system health</p>
+          <p className="gov-sub">Manage user roles, department assignments, NFT minting and system health</p>
         </div>
       </div>
 

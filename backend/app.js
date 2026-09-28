@@ -245,7 +245,8 @@ app.get('/api/rewards/:address', async (req, res) => {
 });
 
 app.get('/api/leaderboard', async (_req, res) => {
-  const addresses = [...new Set(getReports().map((r) => r.reporter).filter(Boolean))];
+  // Legacy (pre-Ethereum) reporter ids cannot sign in any more — history only.
+  const addresses = [...new Set(getReports().map((r) => r.reporter).filter((a) => isValidAddress(a)))];
   const leaderboard = [];
   for (const address of addresses) {
     const [{ points }, { score }] = await Promise.all([getPoints(address), getReputation(address)]);
@@ -269,7 +270,8 @@ if (fs.existsSync(distDir) && !isTest()) {
     },
   }));
   app.get('*', (req, res, next) => {
-    if (req.path.startsWith('/api') || req.path === '/health') return next();
+    // Missing downloads must 404 — never an HTML page saved as an .apk.
+    if (req.path.startsWith('/api') || req.path === '/health' || req.path.startsWith('/downloads/')) return next();
     res.sendFile(path.join(distDir, 'index.html'));
   });
 }

@@ -1,4 +1,4 @@
-const BASE = import.meta.env.VITE_API_URL || '';
+import { getApiBase } from './platform.js';
 
 // ── Module-level auth token ──────────────────────────────────────────────────
 // Set by useWallet after successful login. All requests automatically include it.
@@ -6,40 +6,81 @@ let _authToken = null;
 export const setAuthToken   = (t) => { _authToken = t; };
 export const clearAuthToken = ()  => { _authToken = null; };
 
+/** Error carrying the HTTP status and the parsed JSON body. */
+export class ApiError extends Error {
+  constructor(message, status, data) {
+    super(message);
+    this.status = status;
+    this.data   = data;
+  }
+}
+
 // ── Core fetch wrapper ───────────────────────────────────────────────────────
 async function req(path, opts = {}) {
   const headers = {};
-  if (!(opts.body instanceof FormData)) {
-    headers['Content-Type'] = 'application/json';
+  if (!(opts.body instanceof FormData)) headers['Content-Type'] = 'application/json';
+  if (_authToken) headers['Authorization'] = `Bearer ${_authToken}`;
+
+  let res;
+  try {
+    res = await fetch(getApiBase() + path, { ...opts, headers: { ...headers, ...(opts.headers || {}) } });
+  } catch {
+    throw new ApiError('Cannot reach the CivicChain server. Check your connection.', 0, null);
   }
-  if (_authToken) {
-    headers['Authorization'] = `Bearer ${_authToken}`;
+  let data = null;
+  try { data = await res.json(); } catch { data = null; }
+  if (!res.ok && !opts.allowStatus?.includes(res.status)) {
+    throw new ApiError(data?.message || data?.error || data?.reason || `HTTP ${res.status}`, res.status, data);
   }
-  const res  = await fetch(BASE + path, { ...opts, headers: { ...headers, ...(opts.headers || {}) } });
-  const data = await res.json();
-  if (!res.ok && !data.duplicate) throw new Error(data.error || data.reason || `HTTP ${res.status}`);
   return data;
 }
 
-export const api = {
-  // ── Core ─────────────────────────────────────────────────────────────────
-  health:      ()       => req('/health'),
-  stats:       ()       => req('/api/stats'),
-  nonce:       (addr)   => req(`/api/nonce/${addr}`),
-  balance:     (addr)   => req(`/api/balance/${addr}`),
-  reports:     (params) => req('/api/reports?' + new URLSearchParams(params || {})),
-  report:      (id)     => req(`/api/reports/${id}`),
-  blocks:      (n = 10) => req(`/api/blocks?count=${n}`),
-  contracts:   ()       => req('/api/contracts'),
-  aiVerify:    (body)   => req('/api/ai/verify',  { method: 'POST', body: JSON.stringify(body) }),
-  broadcast:   (tx)     => req('/api/broadcast',  { method: 'POST', body: JSON.stringify(tx) }),
+const json = (body) => JSON.stringify(body);
+const qs   = (params) => {
+  const clean = Object.fromEntries(Object.entries(params || {}).filter(([, v]) => v !== undefined && v !== null && v !== ''));
+  const s = new URLSearchParams(clean).toString();
+  return s ? `?${s}` : '';
+};
 
-  // ── Phase 10 — Profile APIs ──────────────────────────────────────────────
+// Report pipeline statuses that come back with a 4xx/5xx but a useful body.
+const REPORT_STATUSES = [201, 202, 400, 409, 422, 502, 503];
+
+export const api = {
+  // ── Core / chain ─────────────────────────────────────────────────────────
+  health:      ()        => req('/health'),
+  stats:       ()        => req('/api/stats'),
+  chainStatus: ()        => req('/api/chain/status'),
+  reports:     (params)  => req('/api/reports' + qs(params)),
+  report:      (id)      => req(`/api/reports/${encodeURIComponent(id)}`),
+  aiVerify:    (body)    => req('/api/ai/verify', { method: 'POST', body: json(body) }),
+
+  // ── Civic Issue NFTs ─────────────────────────────────────────────────────
+  nftContract:    ()            => req('/api/nft/contract'),
+  nfts:           (params)      => req('/api/nfts' + qs(params)),
+  nft:            (tokenId)     => req(`/api/nft/${encodeURIComponent(tokenId)}`),
+  nftsByOwner:    (address)     => req(`/api/nft/owner/${address}`),
+  reportNft:      (reportId)    => req(`/api/report/${encodeURIComponent(reportId)}/nft`),
+  retryMint:      (reportId)    => req(`/api/nft/retry/${encodeURIComponent(reportId)}`, { method: 'POST', body: json({}), allowStatus: [202, 409] }),
+  retryFailed:    ()            => req('/api/nft/retry-failed', { method: 'POST', body: json({}) }),
+  events:         ()            => req('/api/events'),
+
+  // ── Report submission (full pipeline → Civic Issue NFT) ─────────────────
+  submitReport: (file, city, address) => {
+    const formData = new FormData();
+    formData.append('image', file);
+    if (city)    formData.append('city', city);
+    if (address) formData.append('address', address);
+    return req('/api/report/create', { method: 'POST', body: formData, allowStatus: REPORT_STATUSES });
+  },
+
+  // ── Profile / gamification (off-chain) ───────────────────────────────────
   profilePoints:     (addr) => req(`/api/profile/${addr}/points`),
   profileReputation: (addr) => req(`/api/profile/${addr}/reputation`),
   profileBadges:     (addr) => req(`/api/profile/${addr}/badges`),
+  profileNfts:       (addr) => req(`/api/profile/${addr}/nfts`),
+  leaderboard:       ()     => req('/api/leaderboard'),
 
-  // ── Phase 12 — Analytics APIs ────────────────────────────────────────────
+  // ── Analytics ────────────────────────────────────────────────────────────
   analyticsOverview:     () => req('/api/analytics/overview'),
   analyticsCategories:   () => req('/api/analytics/categories'),
   analyticsSeverity:     () => req('/api/analytics/severity'),
@@ -47,63 +88,32 @@ export const api = {
   analyticsHotspots:     () => req('/api/analytics/hotspots'),
   analyticsTrends:       () => req('/api/analytics/trends'),
   analyticsInsights:     () => req('/api/analytics/insights'),
+  analyticsNfts:         () => req('/api/analytics/nfts'),
 
-  // ── Phase 13 — Workflow APIs (protected — requires JWT via _authToken) ───
-  workflowVerify:  (id, note = '') => req(`/api/workflow/${id}/verify`,  { method: 'POST', body: JSON.stringify({ note }) }),
-  workflowStart:   (id, note = '') => req(`/api/workflow/${id}/start`,   { method: 'POST', body: JSON.stringify({ note }) }),
-  workflowResolve: (id, note = '') => req(`/api/workflow/${id}/resolve`, { method: 'POST', body: JSON.stringify({ note }) }),
+  // ── Workflow (JWT) ───────────────────────────────────────────────────────
+  workflowVerify:  (id, note = '') => req(`/api/workflow/${encodeURIComponent(id)}/verify`,  { method: 'POST', body: json({ note }) }),
+  workflowStart:   (id, note = '') => req(`/api/workflow/${encodeURIComponent(id)}/start`,   { method: 'POST', body: json({ note }) }),
+  workflowResolve: (id, note = '') => req(`/api/workflow/${encodeURIComponent(id)}/resolve`, { method: 'POST', body: json({ note }) }),
 
-  // ── Phase 14 — Image Upload ─────────────────────────────────────────
-  submitReport: (file, city, address) => {
-    const formData = new FormData();
-    formData.append('image',   file);
-    if (city)    formData.append('city',    city);    // Phase 14C
-    if (address) formData.append('address', address); // Phase 14C
-    return req('/api/report/create', { method: 'POST', body: formData });
-  },
+  // ── Auth ─────────────────────────────────────────────────────────────────
+  authNonce: (address) => req(`/api/auth/nonce/${address}`),
+  authLogin: (body)    => req('/api/auth/login', { method: 'POST', body: json(body) }),
+  authMe:    ()        => req('/api/auth/me'),
 
-  // ── Phase 16 — User-signed report flow ───────────────────────────────────
-  // prepare: AI + fraud + duplicate + IPFS (no chain write)
-  prepareReport: (file, city, address) => {
-    const formData = new FormData();
-    formData.append('image', file);
-    if (city)    formData.append('city',    city);
-    if (address) formData.append('address', address);
-    return req('/api/report/prepare', { method: 'POST', body: formData });
-  },
-  // finalize: register hash + award rewards/reputation (after client broadcast)
-  finalizeReport: (body) => req('/api/report/finalize', { method: 'POST', body: JSON.stringify(body) }),
+  // ── RBAC (JWT) ───────────────────────────────────────────────────────────
+  rbacRole:   (address) => req(`/api/rbac/role/${address}`),
+  rbacRoles:  ()        => req('/api/rbac/roles'),
+  rbacAssign: (body)    => req('/api/rbac/assign', { method: 'POST', body: json(body) }),
 
-  // ── Phase 14A — Auth APIs (public) ───────────────────────────────────────
-  authNonce: (address)       => req(`/api/auth/nonce/${address}`),
-  authLogin: (body)          => req('/api/auth/login', { method: 'POST', body: JSON.stringify(body) }),
-  authMe:    ()              => req('/api/auth/me'),
-
-  // ── Phase 14A — RBAC APIs (protected) ────────────────────────────────────
-  rbacRole:   (address)      => req(`/api/rbac/role/${address}`),
-  rbacRoles:  ()             => req('/api/rbac/roles'),
-  rbacAssign: (body)         => req('/api/rbac/assign', { method: 'POST', body: JSON.stringify(body) }),
-
-  // ── Phase 14B — Department APIs ────────────────────────────────────
+  // ── Departments / assignments / cities ───────────────────────────────────
   departments:    ()     => req('/api/departments'),
   deptAnalytics:  ()     => req('/api/departments/analytics'),
   myDepartment:   ()     => req('/api/departments/me'),
   myDeptReports:  ()     => req('/api/departments/me/reports'),
   deptUsers:      ()     => req('/api/departments/users'),
-  assignUserDept: (body) => req('/api/departments/assign-user', { method: 'POST', body: JSON.stringify(body) }),
-
-  // ── Phase 14B — Assignment APIs ─────────────────────────────────────
-  assignments:      ()       => req('/api/assignments'),
-  assignment:       (id)     => req(`/api/assignments/${id}`),
-  manualAssign:     (body)   => req('/api/assignments/assign', { method: 'POST', body: JSON.stringify(body) }),
-
-  // ── Phase 14C — City APIs ───────────────────────────────────────────
-  cities: () => req('/api/cities'),
-
-  // ── Leaderboard (derived from analytics top-reporters) ───────────────
-  leaderboard: async () => {
-    const top = await req('/api/analytics/top-reporters');
-    const arr = Array.isArray(top) ? top : (top.topReporters || top.reporters || []);
-    return { leaderboard: arr.map(r => ({ address: r.address, score: r.points ?? r.reputation ?? r.reports ?? 0 })) };
-  },
+  assignUserDept: (body) => req('/api/departments/assign-user', { method: 'POST', body: json(body) }),
+  assignments:    ()     => req('/api/assignments'),
+  assignment:     (id)   => req(`/api/assignments/${encodeURIComponent(id)}`),
+  manualAssign:   (body) => req('/api/assignments/assign', { method: 'POST', body: json(body) }),
+  cities:         ()     => req('/api/cities'),
 };

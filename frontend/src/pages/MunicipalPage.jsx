@@ -6,6 +6,8 @@ import {
 } from 'lucide-react';
 import { api } from '../utils/api.js';
 import { useWallet } from '../hooks/useWallet.jsx';
+import NftStatusBadge from '../components/NftStatusBadge.jsx';
+import { formatLocation } from '../utils/format.js';
 
 const TABS = ['Assigned', 'In Progress', 'Completed'];
 
@@ -23,7 +25,7 @@ const SEV_COLOR = { HIGH: '#ef4444', MEDIUM: '#f59e0b', LOW: '#22c55e', CRITICAL
 const CAT_COLOR = {
   ROAD_DAMAGE: '#3b82f6', FLOOD: '#06b6d4', FIRE: '#ef4444',
   STREETLIGHT: '#f59e0b', GARBAGE: '#22c55e', WATER_LEAK: '#6366f1',
-  UNSAFE_BUILDING: '#ec4899', OTHER: '#6b7280',
+  UNSAFE_BUILDING: '#ec4899', WATER_LEAKAGE: '#6366f1', SEWAGE: '#14b8a6', PUBLIC_SAFETY: '#f43f5e', OTHER: '#6b7280',
 };
 
 function timeAgo(ms) {
@@ -64,11 +66,12 @@ function MunicipalReportCard({ report, onAction, actionLabel, actionColor, actio
       </div>
       <p className="gov-card-desc">{report.description}</p>
       <div className="gov-card-meta">
-        <span>📍 {report.location || 'Unknown'}</span>
+        <span>📍 {formatLocation(report)}</span>
         <span>👤 {short(report.reporter)}</span>
         <span>🕐 {timeAgo(report.createdAt)}</span>
       </div>
       <div className="gov-card-id">ID: {report.id?.slice(0, 12)}…</div>
+      <div className="gov-card-nft"><NftStatusBadge status={report.nft?.status} /></div>
       <div style={{ marginTop: '0.5rem' }}>
         <span className={`status-badge status-${report.status?.toLowerCase()}`}>{report.status}</span>
       </div>
@@ -116,7 +119,7 @@ export default function MunicipalPage() {
   const load = useCallback(async () => {
     setLoading(true); setError(null);
     try {
-      const data = role === 'ADMIN' ? await api.reports() : await api.myDeptReports();
+      const data = role === 'ADMIN' ? await api.reports({ pageSize: 200 }) : await api.myDeptReports();
       setDeptData({
         reports:      data.reports || [],
         total:        data.total   || 0,

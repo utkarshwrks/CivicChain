@@ -6,6 +6,10 @@ import {
 } from 'lucide-react';
 import { api } from '../utils/api.js';
 import { CountUp, LiveBadge } from '../components/ui.jsx';
+import NftStatusBadge from '../components/NftStatusBadge.jsx';
+import NftDetailModal from '../components/NftDetailModal.jsx';
+import { useWallet } from '../hooks/useWallet.jsx';
+import { formatLocation } from '../utils/format.js';
 
 const CATS = {
   ROAD_DAMAGE:     { color: '#f97316', icon: Construction, label: 'Road Damage' },
@@ -14,6 +18,9 @@ const CATS = {
   STREETLIGHT:     { color: '#eab308', icon: Lightbulb,    label: 'Streetlight' },
   GARBAGE:         { color: '#84cc16', icon: Trash2,       label: 'Garbage' },
   WATER_LEAK:      { color: '#06b6d4', icon: Droplets,     label: 'Water Leak' },
+  WATER_LEAKAGE:   { color: '#06b6d4', icon: Droplets,     label: 'Water Leakage' },
+  SEWAGE:          { color: '#14b8a6', icon: Waves,        label: 'Sewage' },
+  PUBLIC_SAFETY:   { color: '#f43f5e', icon: Shield,       label: 'Public Safety' },
   UNSAFE_BUILDING: { color: '#a855f7', icon: Building2,    label: 'Unsafe Building' },
   OTHER:           { color: '#8a8f98', icon: HelpCircle,   label: 'Other' },
 };
@@ -43,7 +50,14 @@ function StatusLine({ status }) {
   );
 }
 
+const ROLE_ACTIONS = {
+  AUTHORITY:      ['verify'],
+  MUNICIPAL_TEAM: ['start', 'resolve'],
+  ADMIN:          ['verify', 'start', 'resolve'],
+};
+
 function WorkflowActions({ report, onAction }) {
+  const { role, isAuthenticated } = useWallet() || {};
   const [loading, setLoading] = useState(null);
   const [msg, setMsg] = useState(null);
   const status = report.status || 'OPEN';
@@ -63,15 +77,17 @@ function WorkflowActions({ report, onAction }) {
     } finally { setLoading(null); }
   }
 
+  const allowed = isAuthenticated ? (ROLE_ACTIONS[role] || []) : [];
   const actions = [];
   if (status === 'OPEN')        actions.push({ key: 'verify',  label: 'Verify',  icon: <Shield size={12} /> });
   if (status === 'VERIFIED')    actions.push({ key: 'start',   label: 'Start',   icon: <Play size={12} /> });
   if (status === 'IN_PROGRESS') actions.push({ key: 'resolve', label: 'Resolve', icon: <CheckSquare size={12} /> });
-  if (actions.length === 0 && !msg) return null;
+  const visible = actions.filter((a) => allowed.includes(a.key));
+  if (visible.length === 0 && !msg) return null;
 
   return (
     <div className="wf-actions">
-      {actions.map((a) => (
+      {visible.map((a) => (
         <button key={a.key} className="wf-btn" onClick={() => act(a.key, a.label)} disabled={!!loading}>
           {loading === a.label ? <Loader2 size={12} className="spin" /> : a.icon}{a.label}
         </button>
@@ -83,7 +99,7 @@ function WorkflowActions({ report, onAction }) {
   );
 }
 
-function ReportCard({ report, index, onStatusChange }) {
+function ReportCard({ report, index, onStatusChange, onOpenNft }) {
   const cat = CATS[report.category] || CATS.OTHER;
   const Icon = cat.icon;
   const sev = SEV[report.severity] || SEV.MEDIUM;
@@ -107,6 +123,12 @@ function ReportCard({ report, index, onStatusChange }) {
         </span>
         <StatusLine status={status} />
       </div>
+      <div className="fcard-nft">
+        <NftStatusBadge
+          status={report.nft?.status}
+          onClick={report.nft?.status === 'NFT_MINTED' ? () => onOpenNft?.(report) : undefined}
+        />
+      </div>
 
       <p className="fcard-desc">{report.description || 'AI-detected civic issue'}</p>
 
@@ -120,7 +142,7 @@ function ReportCard({ report, index, onStatusChange }) {
       </div>
 
       <div className="fcard-meta">
-        <span><MapPin size={11} /> {report.location || 'Unknown'}</span>
+        <span><MapPin size={11} /> {formatLocation(report)}</span>
         <span><Clock size={11} /> {ago(report.createdAt)}</span>
         <span className="mono">{report.reporter?.slice(0, 8)}…</span>
       </div>
@@ -150,11 +172,12 @@ export default function FeedPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter]     = useState('ALL');
   const [query, setQuery]       = useState('');
+  const [nftReport, setNftReport] = useState(null);
 
   async function load(silent = false) {
     silent ? setRefreshing(true) : setLoading(true);
     try {
-      const [r, o] = await Promise.allSettled([api.reports(), api.analyticsOverview()]);
+      const [r, o] = await Promise.allSettled([api.reports({ pageSize: 200 }), api.analyticsOverview()]);
       if (r.status === 'fulfilled') setReports(r.value.reports || []);
       if (o.status === 'fulfilled') setOverview(o.value);
     } finally { setLoading(false); setRefreshing(false); }
@@ -173,7 +196,7 @@ export default function FeedPage() {
     let list = filter === 'ALL' ? reports : reports.filter((r) => r.category === filter);
     if (query.trim()) {
       const q = query.toLowerCase();
-      list = list.filter((r) => (r.description || '').toLowerCase().includes(q) || (r.location || '').toLowerCase().includes(q) || (r.reporter || '').toLowerCase().includes(q));
+      list = list.filter((r) => (r.description || '').toLowerCase().includes(q) || formatLocation(r).toLowerCase().includes(q) || (r.reporter || '').toLowerCase().includes(q) || (r.reportId || '').toLowerCase().includes(q));
     }
     return list;
   }, [reports, filter, query]);
@@ -195,7 +218,7 @@ export default function FeedPage() {
             <h1 className="cc-dash-title">Live Feed</h1>
             <LiveBadge />
           </div>
-          <p className="cc-dash-sub">Every report below is an immutable block on the SAYMAN chain.</p>
+          <p className="cc-dash-sub">AI-verified civic reports. Accepted reports earn a Civic Issue NFT on Ethereum Sepolia.</p>
         </div>
         <button className="cc-refresh" onClick={() => load(true)} disabled={refreshing}>
           <RefreshCw size={13} className={refreshing ? 'spin' : ''} /> {refreshing ? 'Syncing' : 'Refresh'}
@@ -243,17 +266,21 @@ export default function FeedPage() {
       ) : filtered.length === 0 ? (
         <motion.div className="empty-state" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
           <Inbox size={42} />
-          <p>{query || filter !== 'ALL' ? 'No reports match your filters.' : 'No reports yet — be the first to forge a block.'}</p>
+          <p>{query || filter !== 'ALL' ? 'No reports match your filters.' : 'No reports yet — be the first to report a civic issue.'}</p>
         </motion.div>
       ) : (
         <motion.div layout className="feed-grid">
           <AnimatePresence>
             {filtered.map((r, i) => (
-              <ReportCard key={r.id || r.txId || i} report={r} index={i} onStatusChange={() => load(true)} />
+              <ReportCard key={r.reportId || r.id || i} report={r} index={i} onStatusChange={() => load(true)} onOpenNft={setNftReport} />
             ))}
           </AnimatePresence>
         </motion.div>
       )}
+
+      <AnimatePresence>
+        {nftReport && <NftDetailModal tokenId={nftReport.nft?.tokenId} onClose={() => setNftReport(null)} />}
+      </AnimatePresence>
     </div>
   );
 }

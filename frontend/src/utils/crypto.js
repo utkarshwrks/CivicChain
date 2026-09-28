@@ -1,95 +1,81 @@
-import Elliptic from 'elliptic';
-const EC = Elliptic.ec;
-const ec = new EC('secp256k1');
+/**
+ * crypto.js — CivicChain browser wallet helpers (ethers v6).
+ *
+ * The wallet is an identity wallet only: it signs the login challenge.
+ * Citizens never send transactions and never need ETH — the backend minter
+ * pays gas for Civic Issue NFTs on Ethereum Sepolia.
+ */
+import { Wallet, getAddress } from 'ethers';
 
-async function sha256Hex(str) {
-  const buf  = new TextEncoder().encode(str);
-  const hash = await crypto.subtle.digest('SHA-256', buf);
-  return Array.from(new Uint8Array(hash))
-    .map(b => b.toString(16).padStart(2, '0'))
-    .join('');
+const PK_RE = /^(0x)?[0-9a-fA-F]{64}$/;
+
+function toWalletObject(w) {
+  return {
+    address:    getAddress(w.address), // EIP-55 checksum
+    privateKey: w.privateKey,          // 0x-prefixed
+  };
 }
 
-export async function deriveAddress(publicKey) {
-  return (await sha256Hex(publicKey)).slice(0, 40);
+/** Create a fresh random wallet in the browser. */
+export function generateWallet() {
+  return toWalletObject(Wallet.createRandom());
 }
 
-export async function generateWallet() {
-  const kp         = ec.genKeyPair();
-  const privateKey = kp.getPrivate('hex').padStart(64, '0');
-  const publicKey  = kp.getPublic('hex');
-  const address    = await deriveAddress(publicKey);
-  return { privateKey, publicKey, address };
+/** Import a wallet from a 64-hex private key (with or without 0x). */
+export function importWallet(privateKey) {
+  const pk = (privateKey || '').trim();
+  if (!PK_RE.test(pk)) {
+    throw new Error('Invalid private key — expected 64 hexadecimal characters (optionally prefixed with 0x).');
+  }
+  try {
+    return toWalletObject(new Wallet(pk.startsWith('0x') ? pk : `0x${pk}`));
+  } catch {
+    throw new Error('Invalid private key — it is not a valid secp256k1 key.');
+  }
 }
 
-export async function importWallet(privateKey) {
-  if (!privateKey || privateKey.trim().length < 60)
-    throw new Error('Invalid private key — must be 64-char hex');
-  const kp        = ec.keyFromPrivate(privateKey.trim(), 'hex');
-  const publicKey = kp.getPublic('hex');
-  const address   = await deriveAddress(publicKey);
-  return { privateKey: privateKey.trim(), publicKey, address };
+/** The exact login challenge text; the backend builds the same string. */
+export function buildAuthMessage(address, nonce) {
+  return `CivicChain:${getAddress(address)}:${nonce}`;
+}
+
+/** EIP-191 personal_sign of the login challenge. Returns a 0x signature. */
+export async function signAuthMessage(privateKey, address, nonce) {
+  const wallet = new Wallet(privateKey.startsWith('0x') ? privateKey : `0x${privateKey}`);
+  return wallet.signMessage(buildAuthMessage(address, nonce));
 }
 
 /**
- * Sign the authentication challenge message.
- * Message: sha256("CivicChain:" + address.toLowerCase() + ":" + nonce)
- * Returns { r, s } — both hex strings, matching what auth.service.js verifies.
+ * One-time upgrade of a pre-Ethereum wallet (localStorage cp_wallet_v2).
+ * Old wallets stored a secp256k1 private key and a 40-char SHA-256 address;
+ * the same key yields a standard 0x Ethereum address.
+ * Returns the upgraded wallet object, or null if the stored key is unusable.
  */
-export async function signAuthMessage(privateKey, address, nonce) {
-  const message = `CivicChain:${address.toLowerCase()}:${nonce}`;
-  const hash    = await sha256Hex(message);
-  const kp      = ec.keyFromPrivate(privateKey, 'hex');
-  const sig     = kp.sign(hash);
-  return { r: sig.r.toString('hex'), s: sig.s.toString('hex') };
+export function upgradeLegacyWallet(legacy) {
+  if (!legacy || typeof legacy.privateKey !== 'string') return null;
+  try {
+    return importWallet(legacy.privateKey);
+  } catch {
+    return null;
+  }
 }
 
-async function hashTx({ type, timestamp, data, gasLimit, gasPrice, nonce }) {
-  const payload = JSON.stringify({ type, timestamp, data, gasLimit, gasPrice, nonce });
-  return sha256Hex(payload);
+// ─── Optional: injected browser wallet (MetaMask etc.) ───────────────────────
+
+export function hasBrowserWallet() {
+  return typeof window !== 'undefined' && !!window.ethereum;
 }
 
-export async function buildReportTx({
-  wallet, nonce, category, description, location,
-  severity = 'MEDIUM', evidenceHash = null,
-  gasLimit = 10, gasPrice = 1,   // gasUsed=6, so 10 is safe minimum
-}) {
-  const type      = 'REPORT_CREATE';
-  const timestamp = Date.now();
-  const data = {
-    from:         wallet.address,
-    category:     category    || 'OTHER',
-    location:     location    || {},
-    severity,
-    evidenceHash,
-    description:  description || '',
-    timestamp,
-  };
-  const hash = await hashTx({ type, timestamp, data, gasLimit, gasPrice, nonce });
-  const kp   = ec.keyFromPrivate(wallet.privateKey, 'hex');
-  const sig  = kp.sign(hash);
-  return {
-    type, timestamp, data,
-    signature: { r: sig.r.toString('hex'), s: sig.s.toString('hex') },
-    publicKey: wallet.publicKey,
-    gasLimit, gasPrice, nonce,
-  };
+/** Ask the injected wallet for an account. Returns { address, type: 'browser' }. */
+export async function connectBrowserWallet() {
+  if (!hasBrowserWallet()) throw new Error('No browser wallet found. Install MetaMask or create a CivicChain wallet instead.');
+  const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+  if (!accounts?.length) throw new Error('The browser wallet did not share an account.');
+  return { address: getAddress(accounts[0]), type: 'browser' };
 }
 
-export async function buildContractCallTx({
-  wallet, nonce, contractAddress, method, args = {},
-  gasLimit = 10, gasPrice = 1,
-}) {
-  const type      = 'CONTRACT_CALL';
-  const timestamp = Date.now();
-  const data = { from: wallet.address, contractAddress, method, args };
-  const hash = await hashTx({ type, timestamp, data, gasLimit, gasPrice, nonce });
-  const kp   = ec.keyFromPrivate(wallet.privateKey, 'hex');
-  const sig  = kp.sign(hash);
-  return {
-    type, timestamp, data,
-    signature: { r: sig.r.toString('hex'), s: sig.s.toString('hex') },
-    publicKey: wallet.publicKey,
-    gasLimit, gasPrice, nonce,
-  };
-}
+/** personal_sign the login challenge with the injected wallet. */
+export async function signWithBrowserWallet(address, nonce) {
+  const message = buildAuthMessage(address, nonce);
+  return window.ethereum.request({ method: 'personal_sign', params: [message, getAddress(address)] });
+}

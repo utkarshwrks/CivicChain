@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
+import { Download, Smartphone, ShieldCheck, Gem } from 'lucide-react';
 import { api } from '../utils/api.js';
+import { addressUrl, shortAddress } from '../utils/format.js';
+import { APK_URL, isNativeApp } from '../utils/platform.js';
 
 /**
  * CivicChain landing page.
@@ -17,15 +20,17 @@ export default function HomePage({ setTab, onConnect }) {
 
   const [stats, setStats]       = useState(null);
   const [overview, setOverview] = useState(null);
+  const [contract, setContract] = useState(null);
 
   // ── Live backend data ───────────────────────────────────────────────────────
   useEffect(() => {
     let alive = true;
     async function load() {
-      const [s, o] = await Promise.allSettled([api.stats(), api.analyticsOverview()]);
+      const [s, o, c] = await Promise.allSettled([api.stats(), api.analyticsOverview(), api.nftContract()]);
       if (!alive) return;
       if (s.status === 'fulfilled') setStats(s.value);
       if (o.status === 'fulfilled') setOverview(o.value);
+      if (c.status === 'fulfilled') setContract(c.value);
     }
     load();
     const id = setInterval(load, 15_000);
@@ -229,12 +234,12 @@ export default function HomePage({ setTab, onConnect }) {
   const go = (tab) => () => { window.scrollTo({ top: 0, behavior: 'auto' }); setTab?.(tab); };
 
   const liveCards = [
-    { v: stats?.blocks ?? '—',                 l: 'Blocks Forged',   c: 'var(--accent)' },
-    { v: overview?.totalReports ?? stats?.reports ?? '—', l: 'Reports On-Chain', c: 'var(--accent2)' },
-    { v: overview?.resolvedReports ?? '—',     l: 'Issues Resolved', c: 'var(--accent2)' },
+    { v: stats?.latestBlock != null ? `#${stats.latestBlock.toLocaleString()}` : '—', l: 'Latest Sepolia Block', c: 'var(--accent)' },
+    { v: stats?.totalReports ?? overview?.totalReports ?? '—', l: 'Civic Reports',      c: 'var(--accent2)' },
+    { v: stats?.resolvedReports ?? overview?.resolvedReports ?? '—', l: 'Issues Resolved', c: 'var(--accent2)' },
+    { v: stats?.totalNFTs ?? '—',                l: 'Civic NFTs Minted', c: 'var(--accent)' },
     { v: overview ? overview.resolutionRate + '%' : '—', l: 'Resolution Rate', c: 'var(--accent)' },
-    { v: stats?.validators ?? '—',             l: 'Validators',      c: 'var(--accent)' },
-    { v: stats?.mempool ?? '—',                l: 'Mempool',         c: 'var(--accent2)' },
+    { v: stats?.mintSuccessRate != null ? stats.mintSuccessRate + '%' : '—', l: 'Mint Success Rate', c: 'var(--accent2)' },
   ];
 
   return (
@@ -253,15 +258,15 @@ export default function HomePage({ setTab, onConnect }) {
               <div className="cc-kicker">National Civic Intelligence Network</div>
               <h1 className="cc-hero-title">Civic<span className="cc-accent">Chain</span></h1>
               <p className="cc-hero-sub">
-                Citizens report. AI verifies. Blockchain remembers.<br />
-                <span style={{ color: 'var(--accent2)', fontWeight: 600 }}>Nobody can hide.</span>
+                Citizens report. AI verifies. IPFS preserves. Ethereum records.<br />
+                <span style={{ color: 'var(--accent2)', fontWeight: 600 }}>NFTs reward civic participation.</span>
               </p>
               <div className="cc-hero-scrollhint"><i />scroll to forge the chain</div>
             </div>
 
             <div data-cap="1" className="cc-cap" style={{ opacity: 0, gap: 16 }}>
               <div className="cc-kicker tight">// PROOF OF REPORT</div>
-              <h2 className="cc-hero-h2">Every report becomes<br />an <span className="cc-accent">immutable block.</span></h2>
+              <h2 className="cc-hero-h2">Every verified report earns<br />a <span className="cc-accent">Civic Issue NFT.</span></h2>
             </div>
 
             <div data-cap="2" className="cc-cap" style={{ opacity: 0, gap: 16 }}>
@@ -317,13 +322,13 @@ export default function HomePage({ setTab, onConnect }) {
       <section className="cc-section tight">
         <div className="cc-reveal">
           <div className="cc-eyebrow">02 / The Solution</div>
-          <h2 className="cc-h2">A <span className="cc-accent">dual-purpose</span> decentralized platform that solves both problems on a <span className="cc-accent2">single blockchain backbone.</span></h2>
+          <h2 className="cc-h2">A <span className="cc-accent">dual-purpose</span> decentralized platform that solves both problems on <span className="cc-accent2">Ethereum Sepolia.</span></h2>
         </div>
         <div className="cc-feature-grid">
           <div className="cc-reveal cc-feature">
             <div className="num" style={{ borderColor: 'var(--accent)', color: 'var(--accent)' }}>01</div>
             <h3>Civic Reporting Engine</h3>
-            <p>Real-time, AI-verified civic issue reporting with government accountability tracking baked into the chain.</p>
+            <p>Gemini-verified civic reports, evidence pinned to IPFS, and an ERC-721 Civic Issue NFT minted to the citizen — no gas for citizens.</p>
           </div>
           <div className="cc-reveal cc-feature">
             <div className="num" style={{ borderColor: 'var(--accent2)', color: 'var(--accent2)' }}>02</div>
@@ -335,8 +340,8 @@ export default function HomePage({ setTab, onConnect }) {
 
       {/* ── LIVE NETWORK (backend-powered) ───────────────────────────────────── */}
       <section className="cc-live">
-        <div className="cc-reveal cc-eyebrow green" style={{ color: 'var(--accent2)' }}>// LIVE ON SAYMAN TESTNET</div>
-        <div className="cc-reveal cc-h2" style={{ fontSize: 'clamp(26px,4vw,46px)' }}>The chain is <span className="cc-accent2">already running.</span></div>
+        <div className="cc-reveal cc-eyebrow green" style={{ color: 'var(--accent2)' }}>// LIVE ON ETHEREUM SEPOLIA</div>
+        <div className="cc-reveal cc-h2" style={{ fontSize: 'clamp(26px,4vw,46px)' }}>The network is <span className="cc-accent2">already running.</span></div>
         <div className="cc-live-grid">
           {liveCards.map((c) => (
             <div key={c.l} className="cc-reveal cc-live-card">
@@ -346,7 +351,34 @@ export default function HomePage({ setTab, onConnect }) {
             </div>
           ))}
         </div>
+        {contract?.contractAddress && (
+          <a className="cc-reveal cc-contract-link" href={addressUrl(contract.contractAddress)} target="_blank" rel="noopener noreferrer">
+            <Gem size={14} /> CivicIssueNFT contract {shortAddress(contract.contractAddress)} — view on Sepolia Etherscan →
+          </a>
+        )}
       </section>
+
+      {/* ── ANDROID APP ──────────────────────────────────────────────────────── */}
+      {!isNativeApp() && (
+        <section className="cc-section tight" id="download">
+          <div className="cc-reveal cc-apk-panel">
+            <div className="cc-apk-copy">
+              <div className="cc-eyebrow" style={{ marginBottom: 12 }}>CivicChain for Android</div>
+              <h2 className="cc-h2" style={{ fontSize: 'clamp(24px,3.4vw,40px)' }}>Report from your phone. <span className="cc-accent">Get the app.</span></h2>
+              <p className="cc-apk-sub">Snap a pothole, a garbage heap or a broken streetlight and earn a Civic Issue NFT — the same CivicChain, built for Android.</p>
+              <div className="cc-apk-points">
+                <span><Smartphone size={14} /> Android 7.0+</span>
+                <span><ShieldCheck size={14} /> Your wallet key stays on your phone</span>
+                <span><Gem size={14} /> No ETH needed</span>
+              </div>
+            </div>
+            <a className="btn-apk big" href={APK_URL} download="CivicChain.apk">
+              <Download size={22} strokeWidth={2.6} />
+              <span><b>DOWNLOAD APK</b><small>CivicChain.apk · Android</small></span>
+            </a>
+          </div>
+        </section>
+      )}
 
       {/* ── EXPLORE / app nav ────────────────────────────────────────────────── */}
       <section className="cc-section tight" style={{ paddingTop: 0 }}>
@@ -355,12 +387,12 @@ export default function HomePage({ setTab, onConnect }) {
           <button className="cc-reveal cc-explore-card" onClick={go('Submit')}>
             <div className="tag" style={{ color: 'var(--accent)' }}>→ REPORT</div>
             <h4>Submit a Report</h4>
-            <p>Upload evidence → AI vision → IPFS → blockchain → rewards.</p>
+            <p>Upload evidence → AI vision → IPFS → Civic Issue NFT on Sepolia.</p>
           </button>
           <button className="cc-reveal cc-explore-card" onClick={go('Feed')}>
             <div className="tag" style={{ color: 'var(--accent)' }}>→ FEED</div>
             <h4>Live Civic Feed</h4>
-            <p>Every verified report, streaming from the chain in real time.</p>
+            <p>Every verified report with its NFT badge, refreshed in real time.</p>
           </button>
           <button className="cc-reveal cc-explore-card" onClick={go('Analytics')}>
             <div className="tag" style={{ color: 'var(--accent2)' }}>→ INSIGHTS</div>
@@ -369,8 +401,8 @@ export default function HomePage({ setTab, onConnect }) {
           </button>
           <button className="cc-reveal cc-explore-card" onClick={go('Explorer')}>
             <div className="tag" style={{ color: 'var(--accent2)' }}>→ CHAIN</div>
-            <h4>Block Explorer</h4>
-            <p>Inspect SAYMAN blocks and deployed smart contracts.</p>
+            <h4>Sepolia Explorer</h4>
+            <p>Browse Civic Issue NFTs and mint transactions, verified on Etherscan.</p>
           </button>
         </div>
       </section>
@@ -380,7 +412,7 @@ export default function HomePage({ setTab, onConnect }) {
         <div className="cc-reveal" style={{ maxWidth: 1000, margin: '0 auto' }}>
           <div className="cc-eyebrow" style={{ marginBottom: 30 }}>THE ONE-LINER</div>
           <p className="cc-oneliner">
-            CivicChain turns citizens into a real-time <span className="cc-accent">decentralized sensor network</span> and makes every donated rupee <span className="cc-accent2">traceable</span> — powered by AI, secured by blockchain.
+            CivicChain turns citizens into a real-time <span className="cc-accent">decentralized sensor network</span> and rewards every verified report with a <span className="cc-accent2">Civic Issue NFT</span> — powered by AI, preserved on IPFS, recorded on Ethereum.
           </p>
           <button className="btn-primary" style={{ marginTop: 36 }} onClick={onConnect}>Connect your wallet →</button>
         </div>
@@ -388,8 +420,8 @@ export default function HomePage({ setTab, onConnect }) {
 
       {/* ── FOOTER ───────────────────────────────────────────────────────────── */}
       <footer className="cc-footer">
-        <span>Built on SAYMAN Blockchain · Designed for Bharat 🇮🇳</span>
-        <span>Accountable to no one authority.</span>
+        <span>Built on Ethereum Sepolia · Designed for Bharat 🇮🇳</span>
+        <span>Sepolia is a test network — Civic Issue NFTs have no monetary value.</span>
       </footer>
     </div>
   );

@@ -318,7 +318,7 @@ export function createEthereumService(deps = {}) {
     return {
       configured: state.blocking.length === 0,
       ready: state.blocking.length === 0,
-      network: 'Ethereum Sepolia',
+      network: state.chainId === LOCAL_CHAIN_ID ? 'Hardhat Local (rehearsal)' : 'Ethereum Sepolia',
       chainId: state.chainId ?? SEPOLIA_CHAIN_ID,
       expectedChainId: state.cfg.expectedChainId,
       rpcReachable: latestBlock !== null,

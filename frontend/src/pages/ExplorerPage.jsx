@@ -1,169 +1,156 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Blocks, FileCode2, RefreshCw, Loader2, Boxes, ChevronDown, Cpu } from 'lucide-react';
+import { RefreshCw, Loader2, ExternalLink, Gem, Table2, LayoutGrid, AlertTriangle } from 'lucide-react';
 import { api } from '../utils/api.js';
-import { CountUp, CopyButton, LiveBadge } from '../components/ui.jsx';
+import { CountUp, CopyButton, LiveBadge, Skeleton } from '../components/ui.jsx';
+import NftCard from '../components/NftCard.jsx';
+import NftDetailModal from '../components/NftDetailModal.jsx';
+import { shortAddress, shortHash, humanize, formatDate, txUrl, addressUrl, nftUrl } from '../utils/format.js';
 
-const short = (h, n = 10) => (h ? `${h.slice(0, n)}…${h.slice(-6)}` : '—');
-const blkNum = (b) => b.index ?? b.height ?? b.number ?? '?';
-
-function BlockDetail({ block }) {
-  const [raw, setRaw] = useState(false);
-  const kv = [
-    ['Height', String(blkNum(block))],
-    ['Hash', block.hash || '—'],
-    ['Prev Hash', block.previousHash || block.prevHash || '—'],
-    ['Transactions', String(block.transactions?.length ?? 0)],
-    ['Timestamp', block.timestamp ? new Date(block.timestamp).toLocaleString() : '—'],
-    ['Validator', block.validator || block.proposer || '—'],
-  ];
-  return (
-    <motion.div className="blk-detail" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
-      <div className="blk-detail-head">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div className="ct-ic" style={{ width: 34, height: 34, borderRadius: 9, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(255,154,58,.14)', color: 'var(--accent)' }}><Boxes size={17} /></div>
-          <div>
-            <div style={{ fontWeight: 700 }}>Block #{blkNum(block)}</div>
-            <div style={{ fontFamily: 'var(--mono)', fontSize: '0.7rem', color: 'var(--muted)' }}>{block.transactions?.length ?? 0} transactions</div>
-          </div>
-        </div>
-        <button className="blk-raw-toggle" onClick={() => setRaw((v) => !v)}>
-          <ChevronDown size={13} className={`chevron ${raw ? 'open' : ''}`} /> {raw ? 'Hide' : 'Raw'} JSON
-        </button>
-      </div>
-      <div className="blk-kv">
-        {kv.map(([k, v]) => (
-          <div key={k} className="blk-kv-cell">
-            <div className="k">{k}</div>
-            <div className="vv">{v.length > 22 ? short(v, 12) : v}{(k === 'Hash' || k === 'Prev Hash') && v !== '—' && <CopyButton text={v} />}</div>
-          </div>
-        ))}
-      </div>
-      <AnimatePresence>
-        {raw && (
-          <motion.pre className="blk-raw" initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}>
-            {JSON.stringify(block, null, 2)}
-          </motion.pre>
-        )}
-      </AnimatePresence>
-    </motion.div>
-  );
-}
+const CATEGORIES = ['ROAD_DAMAGE', 'GARBAGE', 'FLOOD', 'STREETLIGHT', 'WATER_LEAKAGE', 'SEWAGE', 'PUBLIC_SAFETY', 'FIRE', 'OTHER'];
+const SEVERITIES = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'];
+const PAGE_SIZE = 12;
 
 export default function ExplorerPage() {
-  const [stats, setStats]         = useState(null);
-  const [blocks, setBlocks]       = useState([]);
-  const [contracts, setContracts] = useState([]);
-  const [loading, setLoading]     = useState(true);
+  const [chain, setChain]       = useState(null);
+  const [nfts, setNfts]         = useState([]);
+  const [total, setTotal]       = useState(0);
+  const [pages, setPages]       = useState(0);
+  const [page, setPage]         = useState(1);
+  const [filters, setFilters]   = useState({ category: '', city: '', severity: '' });
+  const [cities, setCities]     = useState([]);
+  const [loading, setLoading]   = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [tab, setTab]             = useState('blocks');
-  const [selected, setSelected]   = useState(null);
+  const [view, setView]         = useState('grid');
+  const [selected, setSelected] = useState(null);
 
-  async function load(silent = false) {
+  const load = useCallback(async (silent = false) => {
     silent ? setRefreshing(true) : setLoading(true);
     try {
-      const [s, b, c] = await Promise.allSettled([api.stats(), api.blocks(16), api.contracts()]);
-      if (s.status === 'fulfilled') setStats(s.value);
-      if (b.status === 'fulfilled') { const arr = b.value.blocks || []; setBlocks(arr); setSelected(arr[0] || null); }
-      if (c.status === 'fulfilled') setContracts(c.value.contracts || Object.values(c.value).filter((v) => typeof v === 'object') || []);
+      const [c, n] = await Promise.allSettled([
+        api.chainStatus(),
+        api.nfts({ page, pageSize: PAGE_SIZE, ...filters }),
+      ]);
+      if (c.status === 'fulfilled') setChain(c.value);
+      if (n.status === 'fulfilled') { setNfts(n.value.nfts || []); setTotal(n.value.total || 0); setPages(n.value.pages || 0); }
     } finally { setLoading(false); setRefreshing(false); }
-  }
-  useEffect(() => { load(); }, []);
+  }, [page, filters]);
 
-  const net = [
-    { v: stats?.blocks ?? 0,      l: 'Block Height', mono: false },
-    { v: stats?.validators ?? 0,  l: 'Validators',   mono: false },
-    { v: stats?.totalStake ?? 0,  l: 'Total Stake',  mono: false },
-    { v: stats?.mempool ?? 0,     l: 'Mempool',      mono: false },
-    { v: stats?.chainId || '—',   l: 'Chain ID',     mono: true },
+  useEffect(() => { load(); }, [load]);
+  useEffect(() => { const id = setInterval(() => load(true), 15_000); return () => clearInterval(id); }, [load]);
+  useEffect(() => { api.cities().then((d) => setCities(d.cities || [])).catch(() => {}); }, []);
+
+  const setFilter = (k, v) => { setPage(1); setFilters((f) => ({ ...f, [k]: v })); };
+
+  const strip = [
+    { l: 'Network',        v: chain?.network || 'Ethereum Sepolia', mono: true },
+    { l: 'Chain ID',       v: chain?.chainId ?? 11155111, mono: true },
+    { l: 'Latest block',   v: chain?.latestBlock ?? '—', count: typeof chain?.latestBlock === 'number' },
+    { l: 'NFT contract',   v: chain?.contractAddress ? shortAddress(chain.contractAddress) : 'not deployed', href: chain?.contractAddress ? addressUrl(chain.contractAddress) : null, copy: chain?.contractAddress, mono: true },
+    { l: 'Contract owner', v: chain?.owner ? shortAddress(chain.owner) : '—', href: chain?.owner ? addressUrl(chain.owner) : null, mono: true },
+    { l: 'Minter',         v: chain?.minter ? shortAddress(chain.minter) : '—', href: chain?.minter ? addressUrl(chain.minter) : null, mono: true },
+    { l: 'Total NFTs minted', v: chain?.totalMinted ?? total, count: true },
   ];
 
   return (
     <div className="page">
       <div className="cc-dash-head">
         <div>
-          <div className="cc-dash-eyebrow">SAYMAN blockchain</div>
+          <div className="cc-dash-eyebrow">Ethereum Sepolia · Civic Issue NFTs</div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <h1 className="cc-dash-title">Block Explorer</h1><LiveBadge />
+            <h1 className="cc-dash-title">Ethereum Sepolia Explorer</h1><LiveBadge />
           </div>
-          <p className="cc-dash-sub">Inspect blocks and smart contracts on the public testnet.</p>
+          <p className="cc-dash-sub">Every Civic Issue NFT is a real ERC-721 on Sepolia — verify any token on Etherscan.</p>
         </div>
         <button className="cc-refresh" onClick={() => load(true)} disabled={refreshing}>
           <RefreshCw size={13} className={refreshing ? 'spin' : ''} /> {refreshing ? 'Syncing' : 'Refresh'}
         </button>
       </div>
 
-      {/* Network strip */}
-      <div className="net-strip">
-        {net.map((n, i) => (
-          <motion.div key={n.l} className="net-cell" initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.06 }}>
-            <span className={`v ${n.mono ? 'mono' : ''}`} style={{ color: n.mono ? 'var(--muted)' : 'var(--accent)' }}>
-              {n.mono ? n.v : <CountUp value={n.v} />}
+      {chain && !chain.ready && (
+        <div className="alert warn" style={{ marginBottom: '1rem' }}>
+          <AlertTriangle size={14} />
+          <span>Sepolia minting is not ready yet{chain.issues?.length ? ` — ${chain.issues[0]}` : ''}.</span>
+        </div>
+      )}
+
+      <div className="net-strip" data-testid="network-strip">
+        {strip.map((n, i) => (
+          <motion.div key={n.l} className="net-cell" initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}>
+            <span className={`v ${n.mono ? 'mono' : ''}`} style={{ color: n.mono ? 'var(--text)' : 'var(--accent)' }}>
+              {loading && !chain ? <Skeleton w={80} h={16} /> : n.href ? <a href={n.href} target="_blank" rel="noopener noreferrer">{n.v}</a> : n.count ? <CountUp value={n.v} /> : n.v}
+              {n.copy && <CopyButton text={n.copy} />}
             </span>
             <span className="l">{n.l}</span>
           </motion.div>
         ))}
       </div>
 
-      {/* Tabs */}
-      <div className="seg-tabs">
-        {[['blocks', 'Blocks', Blocks], ['contracts', 'Contracts', FileCode2]].map(([key, label, Ic]) => (
-          <button key={key} className={`seg-tab ${tab === key ? 'active' : ''}`} onClick={() => setTab(key)}>
-            {tab === key && <motion.span className="seg-tab-bg" layoutId="segbg" transition={{ type: 'spring', stiffness: 380, damping: 30 }} />}
-            <span><Ic size={13} /> {label}</span>
-          </button>
-        ))}
+      <div className="explorer-toolbar">
+        <div className="seg-tabs" style={{ marginBottom: 0 }}>
+          {[['grid', 'Latest Civic NFTs', LayoutGrid], ['table', 'Mint transactions', Table2]].map(([key, label, Ic]) => (
+            <button key={key} className={`seg-tab ${view === key ? 'active' : ''}`} onClick={() => setView(key)}>
+              {view === key && <span className="seg-tab-bg" />}
+              <span><Ic size={13} /> {label}</span>
+            </button>
+          ))}
+        </div>
+        <div className="explorer-filters">
+          <select className="field-select small" value={filters.category} onChange={(e) => setFilter('category', e.target.value)} aria-label="Category filter">
+            <option value="">All categories</option>
+            {CATEGORIES.map((c) => <option key={c} value={c}>{humanize(c)}</option>)}
+          </select>
+          <select className="field-select small" value={filters.city} onChange={(e) => setFilter('city', e.target.value)} aria-label="City filter">
+            <option value="">All cities</option>
+            {cities.map((c) => <option key={c.code} value={c.code}>{c.name}</option>)}
+          </select>
+          <select className="field-select small" value={filters.severity} onChange={(e) => setFilter('severity', e.target.value)} aria-label="Severity filter">
+            <option value="">All severities</option>
+            {SEVERITIES.map((s) => <option key={s} value={s}>{s}</option>)}
+          </select>
+        </div>
       </div>
 
       {loading ? (
-        <div className="center-loader"><Loader2 size={26} className="spin" /><p>Reading the chain…</p></div>
-      ) : tab === 'blocks' ? (
-        blocks.length === 0 ? <p className="muted">No blocks loaded — check chain connection.</p> : (
-          <>
-            {/* Visual chain */}
-            <div className="chain-viz">
-              {blocks.map((b, i) => (
-                <div key={b.hash || i} className="chain-cube-wrap">
-                  <motion.button
-                    className={`chain-cube ${i === 0 ? 'head' : ''} ${selected && blkNum(selected) === blkNum(b) ? 'sel' : ''}`}
-                    onClick={() => setSelected(b)}
-                    initial={{ opacity: 0, scale: 0.6, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} transition={{ delay: i * 0.04, type: 'spring', stiffness: 300, damping: 22 }}
-                  >
-                    {i === 0 && <motion.span className="pulse" animate={{ scale: [1, 1.6, 1], opacity: [1, 0.4, 1] }} transition={{ repeat: Infinity, duration: 1.8 }} />}
-                    <span className="num">#{blkNum(b)}</span>
-                    <span className="txc">{b.transactions?.length ?? 0} tx</span>
-                  </motion.button>
-                  {i < blocks.length - 1 && <span className="chain-link" />}
-                </div>
-              ))}
-            </div>
-
-            <AnimatePresence mode="wait">
-              {selected && <BlockDetail key={blkNum(selected)} block={selected} />}
-            </AnimatePresence>
-          </>
-        )
+        <div className="nft-grid">{Array.from({ length: 6 }).map((_, i) => <div key={i} className="nft-card skel"><Skeleton w="100%" h={150} r={0} /><div className="nft-card-body"><Skeleton w="60%" /><Skeleton w="80%" style={{ marginTop: 8 }} /></div></div>)}</div>
+      ) : nfts.length === 0 ? (
+        <div className="empty-state"><Gem size={40} /><p>No Civic Issue NFTs {filters.category || filters.city || filters.severity ? 'match these filters' : 'minted yet'}.</p></div>
+      ) : view === 'grid' ? (
+        <div className="nft-grid" data-testid="nft-grid">
+          {nfts.map((n, i) => <NftCard key={`${n.contractAddress}-${n.tokenId}`} nft={n} index={i} onOpen={setSelected} />)}
+        </div>
       ) : (
-        contracts.length === 0 ? <p className="muted">No contracts found.</p> : (
-          <div className="ctr-grid">
-            {contracts.map((c, i) => (
-              <motion.div key={i} className="ctr-card" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.06 }}>
-                <div className="ct-top">
-                  <div className="ct-ic"><Cpu size={18} /></div>
-                  <div style={{ flex: 1 }}>
-                    <div className="ct-name">{c.name || 'Contract'}</div>
-                    <div className="ct-ver">v{c.version || '1.0'}</div>
-                  </div>
-                </div>
-                <div className="ct-addr">
-                  <code>{c.address || c.id || '—'}</code>
-                  {(c.address || c.id) && <CopyButton text={c.address || c.id} />}
-                </div>
-              </motion.div>
-            ))}
-          </div>
-        )
+        <div className="mint-table-wrap">
+          <table className="mint-table" data-testid="mint-table">
+            <thead><tr><th>Tx hash</th><th>Token</th><th>Recipient</th><th>Block</th><th>Time</th><th /></tr></thead>
+            <tbody>
+              {nfts.map((n) => (
+                <tr key={`${n.contractAddress}-${n.tokenId}`} onClick={() => setSelected(n)}>
+                  <td className="mono"><a href={txUrl(n.transactionHash)} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}>{shortHash(n.transactionHash)}</a></td>
+                  <td>#{n.tokenId}</td>
+                  <td className="mono"><a href={addressUrl(n.owner)} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}>{shortAddress(n.owner)}</a></td>
+                  <td className="mono">{n.blockNumber ?? '—'}</td>
+                  <td>{formatDate(n.mintedAt)}</td>
+                  <td><a href={nftUrl(n.contractAddress, n.tokenId)} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}><ExternalLink size={12} /> Etherscan</a></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
+
+      {pages > 1 && (
+        <div className="pager">
+          <button className="btn-ghost small" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>← Prev</button>
+          <span className="mono small">Page {page} / {pages}</span>
+          <button className="btn-ghost small" disabled={page >= pages} onClick={() => setPage((p) => p + 1)}>Next →</button>
+        </div>
+      )}
+      {refreshing && <div className="muted small" style={{ marginTop: 8 }}><Loader2 size={11} className="spin" /> syncing…</div>}
+
+      <AnimatePresence>
+        {selected && <NftDetailModal nft={selected} onClose={() => setSelected(null)} />}
+      </AnimatePresence>
     </div>
   );
 }

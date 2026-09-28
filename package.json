@@ -22,7 +22,9 @@
         "test:backend": "vitest run",
         "smoke:sepolia": "node scripts/sepolia-smoke.js",
         "migrate:data": "node scripts/migrate-data-to-ethereum.js",
-        "e2e:sepolia": "node scripts/e2e-sepolia.js"
+        "e2e:sepolia": "node scripts/e2e-sepolia.js",
+        "rehearsal:local": "node test/harness/run-local.mjs",
+        "rehearsal:ui": "node test/harness/ui-walkthrough.mjs"
     },
     "dependencies": {
         "@google/generative-ai": "^0.24.1",
@@ -42,6 +44,7 @@
         "@openzeppelin/contracts": "^5.6.1",
         "concurrently": "^9.1.0",
         "hardhat": "^2.29.1",
+        "puppeteer-core": "^23.11.1",
         "supertest": "^7.3.0",
         "vitest": "^3.2.7"
     }
