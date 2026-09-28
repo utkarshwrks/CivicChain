@@ -1,85 +1,43 @@
 /**
- * report.routes.js — CivicChain Report Routes  (Phase 7 + Phase 8)
+ * report.routes.js — CivicChain report routes
  *
- * POST /api/report/process — AI + IPFS pipeline  (Phase 7)
- * POST /api/report/create  — AI + IPFS + Blockchain  (Phase 8)
+ * POST /api/report/process          AI + IPFS preview (no NFT)
+ * POST /api/report/create   (JWT)   AI → fraud → duplicate → IPFS → metadata → store → mint
+ * GET  /api/report/:reportId/nft    current NFT status
  */
 
 import { Router } from 'express';
-import multer      from 'multer';
+import rateLimit  from 'express-rate-limit';
+import { authenticate } from '../middleware/auth.middleware.js';
+import { imageUpload } from '../middleware/upload.js';
 import {
   processReportController,
   createReportController,
-  prepareReportController,
-  finalizeReportController,
+  reportNftController,
 } from '../controllers/report.controller.js';
 
 const router = Router();
+const isTest = () => process.env.NODE_ENV === 'test';
 
-// ─── Multer (in-memory, 10 MB, images only) ───────────────────────────────────
-const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: {
-    fileSize: 10 * 1024 * 1024,
-    files:    1,
-  },
-  fileFilter(_req, file, cb) {
-    if (/^image\//i.test(file.mimetype)) {
-      cb(null, true);
-    } else {
-      cb(new Error(`Invalid file type "${file.mimetype}". Only images are accepted.`));
-    }
-  },
+// Stricter limits for the expensive pipeline: per IP and per wallet.
+const createLimiterIp = rateLimit({
+  windowMs: 10 * 60_000, max: 10, standardHeaders: true, legacyHeaders: false,
+  skip: isTest,
+  message: { error: 'Too many reports from this network. Try again in a few minutes.', code: 'RATE_LIMITED' },
+});
+const createLimiterWallet = rateLimit({
+  windowMs: 10 * 60_000, max: 10, standardHeaders: true, legacyHeaders: false,
+  skip: isTest,
+  keyGenerator: (req) => `wallet:${String(req.user?.address || '').toLowerCase()}`,
+  message: { error: 'Too many reports from this wallet. Try again in a few minutes.', code: 'RATE_LIMITED' },
+});
+const previewLimiter = rateLimit({
+  windowMs: 10 * 60_000, max: 20, standardHeaders: true, legacyHeaders: false, skip: isTest,
+  message: { error: 'Too many preview requests. Try again later.', code: 'RATE_LIMITED' },
 });
 
-// ─── Routes ───────────────────────────────────────────────────────────────────
-
-/**
- * POST /api/report/process                                         (Phase 7)
- * Gemini Vision + IPFS — no blockchain write.
- *
- * curl -X POST http://localhost:3001/api/report/process \
- *      -F "image=@pothole.jpg"
- */
-router.post('/process', upload.single('image'), processReportController);
-
-/**
- * POST /api/report/create                                          (Phase 8)
- * Full pipeline: Gemini Vision → Pinata IPFS → ReportRegistry on SAYMAN.
- *
- * curl -X POST http://localhost:3001/api/report/create \
- *      -F "image=@pothole.jpg" \
- *      -F "location=MG Road, Bangalore" \
- *      -F "reporter=<wallet_address>"
- */
-router.post('/create', upload.single('image'), createReportController);
-
-/**
- * POST /api/report/prepare                                          (Phase 16)
- * AI → fraud → duplicate → IPFS, NO chain write. Returns the data the client
- * needs to sign + broadcast a REPORT_CREATE from the reporter's OWN wallet.
- */
-router.post('/prepare', upload.single('image'), prepareReportController);
-
-/**
- * POST /api/report/finalize                                         (Phase 16)
- * Called after the client broadcasts the user-signed tx. JSON body.
- * Registers duplicate hash + awards rewards/reputation to the reporter.
- */
-router.post('/finalize', finalizeReportController);
-
-// ─── Multer error handler ─────────────────────────────────────────────────────
-router.use((err, _req, res, _next) => {
-  if (err instanceof multer.MulterError) {
-    if (err.code === 'LIMIT_FILE_SIZE') {
-      return res.status(400).json({ error: 'File too large. Maximum allowed size is 10 MB.' });
-    }
-    return res.status(400).json({ error: `Upload error: ${err.message}` });
-  }
-  if (err) {
-    return res.status(400).json({ error: err.message });
-  }
-  _next();
-});
+router.post('/process', previewLimiter, imageUpload, processReportController);
+router.post('/create', createLimiterIp, authenticate, createLimiterWallet, imageUpload, createReportController);
+router.get('/:reportId/nft', reportNftController);
 
 export default router;

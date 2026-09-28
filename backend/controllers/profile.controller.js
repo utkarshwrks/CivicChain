@@ -1,70 +1,40 @@
 /**
- * profile.controller.js — CivicChain Profile Controller  (Phase 10)
+ * profile.controller.js — CivicChain profile (off-chain gamification + NFT collection)
  *
- * GET /api/profile/:address/points      → reward points
- * GET /api/profile/:address/reputation  → reputation score + level
- * GET /api/profile/:address/badges      → earned badges
+ * GET /api/profile/:address/points      → { points, nftCount }
+ * GET /api/profile/:address/reputation  → { score, level, nftCount }
+ * GET /api/profile/:address/badges      → [{ name, nft? }]  (includes the NFT badges)
+ * GET /api/profile/:address/nfts        → { address, nftCount, total, nfts[], pending[] }
  */
+import { getPoints } from '../services/reward.service.js';
+import { getReputation, getBadges, mintedCount } from '../services/reputation.service.js';
+import { getReportsForAddress } from '../services/reportCache.js';
+import { ownerNftsData } from './nft.controller.js';
+import { isValidAddress, invalidWallet } from '../utils/address.js';
 
-import { getPoints }                         from '../services/reward.service.js';
-import { getReputation, getBadges as getBadgesService } from '../services/reputation.service.js';
+const nftCountFor = (address) => mintedCount(getReportsForAddress(address));
 
-/**
- * GET /api/profile/:address/points
- *
- * Response: { "points": 120 }
- */
-export async function getPointsController(req, res) {
-  try {
+function guard(handler) {
+  return async (req, res) => {
     const { address } = req.params;
-    if (!address || address.length < 10) {
-      return res.status(400).json({ error: 'Valid address required' });
+    if (!isValidAddress(address)) return invalidWallet(res);
+    try {
+      return await handler(address, req, res);
+    } catch (err) {
+      console.error('[Profile] error:', err.message);
+      return res.status(500).json({ error: 'Profile lookup failed.' });
     }
-
-    const result = await getPoints(address);
-    return res.status(200).json(result);
-  } catch (err) {
-    console.error('[Profile] getPoints error:', err.message);
-    return res.status(500).json({ error: err.message, points: 0 });
-  }
+  };
 }
 
-/**
- * GET /api/profile/:address/reputation
- *
- * Response: { "score": 80, "level": "VERIFIED" }
- */
-export async function getReputationController(req, res) {
-  try {
-    const { address } = req.params;
-    if (!address || address.length < 10) {
-      return res.status(400).json({ error: 'Valid address required' });
-    }
+export const getPointsController = guard(async (address, _req, res) =>
+  res.json({ ...(await getPoints(address)), nftCount: nftCountFor(address) }));
 
-    const result = await getReputation(address);
-    return res.status(200).json(result);
-  } catch (err) {
-    console.error('[Profile] getReputation error:', err.message);
-    return res.status(500).json({ error: err.message, score: 0, level: 'NEW' });
-  }
-}
+export const getReputationController = guard(async (address, _req, res) =>
+  res.json({ ...(await getReputation(address)), nftCount: nftCountFor(address) }));
 
-/**
- * GET /api/profile/:address/badges
- *
- * Response: [{ "name": "First Report" }, { "name": "Active Citizen" }]
- */
-export async function getBadgesController(req, res) {
-  try {
-    const { address } = req.params;
-    if (!address || address.length < 10) {
-      return res.status(400).json({ error: 'Valid address required' });
-    }
+export const getBadgesController = guard(async (address, _req, res) =>
+  res.json(await getBadges(address)));
 
-    const badges = await getBadgesService(address);
-    return res.status(200).json(badges);
-  } catch (err) {
-    console.error('[Profile] getBadges error:', err.message);
-    return res.status(500).json({ error: err.message });
-  }
-}
+export const getNftsController = guard(async (address, _req, res) =>
+  res.json(await ownerNftsData(address)));

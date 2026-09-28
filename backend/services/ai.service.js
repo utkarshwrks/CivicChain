@@ -81,7 +81,14 @@ export async function analyzeImage(imageBuffer, mimeType) {
     },
   };
 
-  const result   = await model.generateContent([SYSTEM_PROMPT, imagePart]);
+  const timeoutMs = Number(process.env.AI_TIMEOUT_MS) || 45_000;
+  let timer;
+  const result = await Promise.race([
+    model.generateContent([SYSTEM_PROMPT, imagePart]),
+    new Promise((_, reject) => {
+      timer = setTimeout(() => reject(new Error(`Gemini timed out after ${timeoutMs} ms`)), timeoutMs);
+    }),
+  ]).finally(() => clearTimeout(timer));
   const rawText  = result.response.text().trim();
 
   return parseGeminiResponse(rawText);

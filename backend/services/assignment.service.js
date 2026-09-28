@@ -23,6 +23,8 @@ import { fileURLToPath } from 'url';
 import { getDepartmentForCategory } from './department.service.js';
 import { dataPath } from '../config/paths.js';
 
+const debug = (...args) => { if (process.env.LOG_LEVEL === 'debug') console.log(...args); };
+
 const __dirname   = path.dirname(fileURLToPath(import.meta.url));
 const ASSIGN_PATH = dataPath('assignments.json');
 const LOG         = '[ASSIGN]';
@@ -34,7 +36,7 @@ function loadAssignments() {
   try {
     if (fs.existsSync(ASSIGN_PATH)) {
       assignments = JSON.parse(fs.readFileSync(ASSIGN_PATH, 'utf8'));
-      console.log(`${LOG} Loaded ${Object.keys(assignments).length} report assignments from disk`);
+      debug(`${LOG} Loaded ${Object.keys(assignments).length} report assignments from disk`);
     }
   } catch (e) {
     console.warn(`${LOG} Failed to load assignments.json:`, e.message);
@@ -96,7 +98,7 @@ export function ensureAssigned(reports) {
       status:       'ASSIGNED',
       overriddenBy: null,
     };
-    console.log(`${LOG} Auto-assigned ${r.id.slice(0, 12)}… [${r.category}|${city || 'no-city'}] → ${department}`);
+    debug(`${LOG} Auto-assigned ${r.id.slice(0, 12)}… [${r.category}|${city || 'no-city'}] → ${department}`);
     changed = true;
   }
   if (changed) saveAssignments();
@@ -122,7 +124,7 @@ export function assignReport(reportId, department, overriddenBy = null, city = u
     status:     'ASSIGNED',
   };
   saveAssignments();
-  console.log(`${LOG} Manually assigned ${reportId.slice(0, 12)}… → ${department} (by ${overriddenBy})`);
+  debug(`${LOG} Manually assigned ${reportId.slice(0, 12)}… → ${department} (by ${overriddenBy})`);
   return { ...assignments[reportId] };
 }
 

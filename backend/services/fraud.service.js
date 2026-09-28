@@ -9,6 +9,8 @@
 
 import { ALL_RULES, FRAUD_THRESHOLDS } from '../utils/fraudRules.js';
 
+const debug = (...args) => { if (process.env.LOG_LEVEL === 'debug') console.log(...args); };
+
 /**
  * Calculate fraud score from an AI analysis result.
  *
@@ -27,17 +29,17 @@ export function calculateFraudScore(analysis) {
   const details = [];
   let totalScore = 0;
 
-  console.log(`${LOG} ─── Evaluating fraud rules ───`);
-  console.log(`${LOG} Input: isCivicIssue=${analysis.isCivicIssue} category=${analysis.category} confidence=${analysis.confidence}`);
+  debug(`${LOG} ─── Evaluating fraud rules ───`);
+  debug(`${LOG} Input: isCivicIssue=${analysis.isCivicIssue} category=${analysis.category} confidence=${analysis.confidence}`);
 
   for (const { name, fn } of ALL_RULES) {
     const { score, reason } = fn(analysis);
     if (score > 0) {
       totalScore += score;
       details.push({ rule: name, score, reason });
-      console.log(`${LOG} ⚠ ${name}: +${score} — ${reason}`);
+      debug(`${LOG} ⚠ ${name}: +${score} — ${reason}`);
     } else {
-      console.log(`${LOG} ✓ ${name}: passed`);
+      debug(`${LOG} ✓ ${name}: passed`);
     }
   }
 
@@ -69,11 +71,11 @@ export function calculateFraudScore(analysis) {
     reason = `Blocked: ${details.map(d => d.reason).join('; ')}`;
   }
 
-  console.log(`${LOG} ═══════════════════════════════`);
-  console.log(`${LOG}  Fraud Score: ${fraudScore}/100`);
-  console.log(`${LOG}  Risk Level:  ${riskLevel}`);
-  console.log(`${LOG}  Decision:    ${allowed ? 'ALLOW ✅' : 'BLOCK ❌'}`);
-  console.log(`${LOG} ═══════════════════════════════`);
+  debug(`${LOG} ═══════════════════════════════`);
+  debug(`${LOG}  Fraud Score: ${fraudScore}/100`);
+  debug(`${LOG}  Risk Level:  ${riskLevel}`);
+  debug(`${LOG}  Decision:    ${allowed ? 'ALLOW ✅' : 'BLOCK ❌'}`);
+  debug(`${LOG} ═══════════════════════════════`);
 
   return { allowed, fraudScore, riskLevel, reason, details };
 }

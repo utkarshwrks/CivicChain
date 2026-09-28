@@ -21,7 +21,8 @@
         "deploy:legacy-local": "SAYMAN_RPC=https://sayman.up.railway.app node scripts/deploy.js --network=local",
         "test:backend": "vitest run",
         "smoke:sepolia": "node scripts/sepolia-smoke.js",
-        "migrate:data": "node scripts/migrate-data-to-ethereum.js"
+        "migrate:data": "node scripts/migrate-data-to-ethereum.js",
+        "e2e:sepolia": "node scripts/e2e-sepolia.js"
     },
     "dependencies": {
         "@google/generative-ai": "^0.24.1",

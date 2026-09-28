@@ -16,6 +16,8 @@ import { fileURLToPath } from 'url';
 import { DEPARTMENTS, DEPARTMENT_DISPLAY } from './department.service.js';
 import { dataPath } from '../config/paths.js';
 
+const debug = (...args) => { if (process.env.LOG_LEVEL === 'debug') console.log(...args); };
+
 const __dirname      = path.dirname(fileURLToPath(import.meta.url));
 const USER_DEPT_PATH = dataPath('user-departments.json');
 const CITIES_PATH    = dataPath('cities.json');
@@ -28,7 +30,7 @@ const DEPT_SET = new Set(DEPARTMENTS);
 let CITIES = [];
 try {
   CITIES = JSON.parse(fs.readFileSync(CITIES_PATH, 'utf8'));
-  console.log(`${LOG} Loaded ${CITIES.length} cities`);
+  debug(`${LOG} Loaded ${CITIES.length} cities`);
 } catch (e) {
   console.warn(`${LOG} Failed to load cities.json:`, e.message);
   CITIES = [];
@@ -65,7 +67,7 @@ function loadJurisdictions() {
       for (const [addr, val] of Object.entries(raw)) {
         jurisdictions[addr.toLowerCase()] = normalizeEntry(val);
       }
-      console.log(`${LOG} Loaded ${Object.keys(jurisdictions).length} user jurisdictions`);
+      debug(`${LOG} Loaded ${Object.keys(jurisdictions).length} user jurisdictions`);
     }
   } catch (e) {
     console.warn(`${LOG} Failed to load user-departments.json:`, e.message);
@@ -127,7 +129,7 @@ export function setUserJurisdiction(address, department, city) {
     city:       city       !== undefined ? city       : (prev.city       || null),
   };
   saveJurisdictions();
-  console.log(`${LOG} Set ${address.slice(0, 10)}… → dept=${department || 'unchanged'}, city=${city || 'unchanged'}`);
+  debug(`${LOG} Set ${address.slice(0, 10)}… → dept=${department || 'unchanged'}, city=${city || 'unchanged'}`);
 }
 
 /**
@@ -136,7 +138,7 @@ export function setUserJurisdiction(address, department, city) {
 export function removeUserJurisdiction(address) {
   delete jurisdictions[address.toLowerCase()];
   saveJurisdictions();
-  console.log(`${LOG} Removed jurisdiction for ${address.slice(0, 10)}…`);
+  debug(`${LOG} Removed jurisdiction for ${address.slice(0, 10)}…`);
 }
 
 /**

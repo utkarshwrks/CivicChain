@@ -38,6 +38,7 @@ export function makeFakeChain(opts = {}) {
     waitError: null,           // error thrown by provider.waitForTransaction
     receiptStatus: 1,
     waitDelayMs: 0,
+    address: CONTRACT,
     ...opts,
   };
 
@@ -78,7 +79,7 @@ export function makeFakeChain(opts = {}) {
     return {
       status: t.status,
       blockNumber: o.latestBlock + 1,
-      logs: t.status === 1 ? [mintedLog(t.tokenId, t.recipient, t.uri)] : [],
+      logs: t.status === 1 ? [mintedLog(t.tokenId, t.recipient, t.uri, o.address)] : [],
     };
   }
 
@@ -101,7 +102,7 @@ export function makeFakeChain(opts = {}) {
   };
 
   const contract = {
-    getAddress: async () => CONTRACT,
+    getAddress: async () => o.address,
     minter: async () => o.minter,
     name: async () => 'CivicChain Civic Issue',
     symbol: async () => 'CIVIC',
@@ -130,7 +131,7 @@ export function makeFakeChain(opts = {}) {
     },
   };
 
-  return { provider, signer, contract, opts: o, txs, sendLog, events };
+  return { provider, signer, contract, opts: o, txs, sendLog, events, address: o.address };
 }
 
 export const randomAddress = () => Wallet.createRandom().address;

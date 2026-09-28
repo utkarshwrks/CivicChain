@@ -1,118 +1,135 @@
 /**
- * ipfs.service.js — CivicChain IPFS Storage Service  (Phase 6)
+ * ipfs.service.js — CivicChain IPFS storage (Pinata)
  *
- * Uploads an image buffer to Pinata (IPFS pinning service) and returns
- * the content identifier (CID) plus a public gateway URL.
+ *   uploadToIPFS(buffer, mimeType, filename, meta) → pinFileToIPFS (evidence image)
+ *   uploadJSON(obj, { name, reportId })            → pinJSONToIPFS (NFT metadata)
  *
- * Auth: Pinata JWT  →  PINATA_JWT env var
- * API:  https://api.pinata.cloud/pinning/pinFileToIPFS
+ * Auth: PINATA_JWT (backend only). Gateway: PINATA_GATEWAY
+ * (default https://gateway.pinata.cloud/ipfs). 30 s timeout, one retry on
+ * network errors / 5xx. Typed errors (err.code):
+ *   IPFS_AUTH_FAILED  401/403 — check PINATA_JWT
+ *   IPFS_QUOTA        429 / plan limit — free quota exhausted (never switches to a paid service)
+ *   IPFS_FAILED       anything else
  */
 
-import axios      from 'axios';
-import FormData   from 'form-data';
+import axios    from 'axios';
+import FormData from 'form-data';
+import { redactSecrets } from '../utils/redact.js';
 
-// ─── Constants ────────────────────────────────────────────────────────────────
+const PIN_FILE_URL = 'https://api.pinata.cloud/pinning/pinFileToIPFS';
+const PIN_JSON_URL = 'https://api.pinata.cloud/pinning/pinJSONToIPFS';
+const PUBLIC_GATEWAY = 'https://ipfs.io/ipfs';
+const TIMEOUT_MS = 30_000;
 
-const PINATA_API_URL   = 'https://api.pinata.cloud/pinning/pinFileToIPFS';
-const PINATA_GATEWAY   = 'https://gateway.pinata.cloud/ipfs';
-const PUBLIC_GATEWAY   = 'https://ipfs.io/ipfs';          // fallback public gateway
+export class IpfsError extends Error {
+  constructor(code, message, status) {
+    super(message);
+    this.code = code;
+    this.status = status;
+  }
+}
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+export function getGateway() {
+  return (process.env.PINATA_GATEWAY || 'https://gateway.pinata.cloud/ipfs').replace(/\/+$/, '');
+}
 
 function getJwt() {
-  const jwt = process.env.PINATA_JWT;
+  const jwt = (process.env.PINATA_JWT || '').trim();
   if (!jwt || jwt === 'paste_your_pinata_jwt_here') {
-    throw new Error('PINATA_JWT is not configured. Add it to your .env file.');
+    throw new IpfsError('IPFS_AUTH_FAILED', 'PINATA_JWT is not configured on the server — add a free Pinata JWT to .env.');
   }
   return jwt;
 }
 
-// ─── Service ──────────────────────────────────────────────────────────────────
-
-/**
- * Upload an image buffer to Pinata / IPFS.
- *
- * @param {Buffer}  buffer       - Raw image bytes (from multer memoryStorage)
- * @param {string}  mimeType     - e.g. "image/jpeg"
- * @param {string}  filename     - Original filename (used as IPFS pin name)
- * @param {object}  [metadata]   - Optional key/value pairs stored as Pinata metadata
- *
- * @returns {Promise<{ cid: string, gatewayUrl: string, ipfsUrl: string }>}
- */
-export async function uploadToIPFS(buffer, mimeType, filename, metadata = {}) {
-  const jwt = getJwt();
-
-  // Build multipart body
-  const form = new FormData();
-
-  // Append file buffer with correct MIME type and filename
-  form.append('file', buffer, {
-    filename:    filename || 'upload',
-    contentType: mimeType,
-  });
-
-  // Pinata metadata — stored alongside the pin, queryable via Pinata dashboard
-  const finalKeyvalues = {
-    source:    'CivicChain',
-    uploadedAt: new Date().toISOString(),
-    ...metadata,
-  };
-
-  // If location is an object (e.g. from Phase 14C), serialize to string for Pinata keyvalues
-  if (finalKeyvalues.location && typeof finalKeyvalues.location !== 'string') {
-    finalKeyvalues.location = JSON.stringify(finalKeyvalues.location);
+function toIpfsError(e) {
+  if (e instanceof IpfsError) return e;
+  const status = e?.response?.status;
+  const body = JSON.stringify(e?.response?.data || '').toLowerCase();
+  if (status === 401 || status === 403) {
+    return new IpfsError('IPFS_AUTH_FAILED', 'Pinata rejected the credentials — check PINATA_JWT.', status);
   }
-
-  const pinataMetadata = JSON.stringify({
-    name:      filename || 'CivicChain Upload',
-    keyvalues: finalKeyvalues,
-  });
-  form.append('pinataMetadata', pinataMetadata);
-
-  // Pinata options — cidVersion 1 gives a more modern base32 CID
-  const pinataOptions = JSON.stringify({ cidVersion: 1 });
-  form.append('pinataOptions', pinataOptions);
-
-  // ── DEBUG: log all request parameters before sending ──────────────────────
-  const jwt_loaded = jwt ? `${jwt.slice(0, 15)}…${jwt.slice(-8)} (len=${jwt.length})` : 'MISSING';
-  console.log('[IPFS_DEBUG] JWT loaded:', jwt_loaded);
-  console.log('[IPFS_DEBUG] filename:', filename);
-  console.log('[IPFS_DEBUG] mimeType:', mimeType);
-  console.log('[IPFS_DEBUG] buffer size (bytes):', buffer?.length);
-  console.log('[IPFS_DEBUG] pinataMetadata raw:', pinataMetadata);
-  console.log('[IPFS_DEBUG] pinataOptions raw:', pinataOptions);
-  console.log('[IPFS_DEBUG] form headers:', form.getHeaders());
-
-  // POST to Pinata
-  let response;
-  console.log("PINATA METADATA:", pinataMetadata);
-  try {
-    response = await axios.post(PINATA_API_URL, form, {
-      maxBodyLength: Infinity,   // allow large files
-      headers: {
-        Authorization: `Bearer ${jwt}`,
-        ...form.getHeaders(),
-      },
-      timeout: 60_000,           // 60-second timeout
-    });
-  } catch (axiosErr) {
-    console.log('[IPFS_DEBUG] Axios error caught');
-    console.log('[IPFS_DEBUG] IPFS STATUS:', axiosErr.response?.status);
-    console.log('[IPFS_DEBUG] IPFS DATA:', JSON.stringify(axiosErr.response?.data, null, 2));
-    console.log('[IPFS_DEBUG] IPFS HEADERS:', JSON.stringify(axiosErr.response?.headers, null, 2));
-    console.log('[IPFS_DEBUG] Raw response text:', axiosErr.response?.data);
-    throw axiosErr;
+  if (status === 429 || body.includes('quota') || body.includes('plan limit') || body.includes('limit reached')) {
+    return new IpfsError('IPFS_QUOTA', 'The free Pinata quota is exhausted. No paid service is used — try again later or use another free key.', status);
   }
+  return new IpfsError('IPFS_FAILED', `IPFS pinning failed${status ? ` (HTTP ${status})` : ''}.`, status);
+}
 
-  const cid = response.data?.IpfsHash;
-  if (!cid) {
-    throw new Error(`Pinata returned unexpected response: ${JSON.stringify(response.data)}`);
+function retryable(e) {
+  const status = e?.response?.status;
+  return !status || status >= 500;
+}
+
+async function postWithRetry(url, data, headers) {
+  let lastErr;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      return await axios.post(url, data, { headers, timeout: TIMEOUT_MS, maxBodyLength: Infinity });
+    } catch (e) {
+      lastErr = e;
+      if (attempt === 0 && retryable(e) && !(e?.response?.status === 401 || e?.response?.status === 403)) {
+        await new Promise((r) => setTimeout(r, 750));
+        continue;
+      }
+      break;
+    }
   }
+  console.error('[IPFS] pin failed:', redactSecrets(lastErr?.message || 'unknown'));
+  throw toIpfsError(lastErr);
+}
 
+/** Pinata keyvalues must be strings/numbers; keep them short and non-personal. */
+function keyvalues(meta) {
+  const out = { app: 'civicchain' };
+  for (const [k, v] of Object.entries(meta || {})) {
+    if (v === undefined || v === null) continue;
+    out[k] = typeof v === 'number' ? v : String(v).slice(0, 250);
+  }
+  return out;
+}
+
+function result(cid) {
+  const gateway = getGateway();
   return {
     cid,
-    gatewayUrl: `${PINATA_GATEWAY}/${cid}`,
+    ipfsUri:    `ipfs://${cid}`,
     ipfsUrl:    `ipfs://${cid}`,
+    gatewayUrl: `${gateway}/${cid}`,
     publicUrl:  `${PUBLIC_GATEWAY}/${cid}`,
   };
+}
+
+/**
+ * Pin an image buffer.
+ * @param {object} [meta] Pinata keyvalues, e.g. { reportId, sha256 }
+ * @returns {Promise<{ cid, ipfsUri, ipfsUrl, gatewayUrl, publicUrl }>}
+ */
+export async function uploadToIPFS(buffer, mimeType, filename, meta = {}) {
+  const jwt = getJwt();
+  const form = new FormData();
+  form.append('file', buffer, { filename: filename || 'evidence', contentType: mimeType });
+  form.append('pinataMetadata', JSON.stringify({ name: meta.reportId ? `civicchain-${meta.reportId}-evidence` : (filename || 'civicchain-evidence'), keyvalues: keyvalues(meta) }));
+  form.append('pinataOptions', JSON.stringify({ cidVersion: 1 }));
+
+  const res = await postWithRetry(PIN_FILE_URL, form, { Authorization: `Bearer ${jwt}`, ...form.getHeaders() });
+  const cid = res.data?.IpfsHash;
+  if (!cid) throw new IpfsError('IPFS_FAILED', 'Pinata returned no CID for the image.');
+  return result(cid);
+}
+
+/**
+ * Pin a JSON document (NFT metadata).
+ * @returns {Promise<{ cid, ipfsUri, ipfsUrl, gatewayUrl, publicUrl }>}
+ */
+export async function uploadJSON(obj, { name, reportId } = {}) {
+  const jwt = getJwt();
+  if (!obj || typeof obj !== 'object') throw new IpfsError('IPFS_FAILED', 'uploadJSON expects an object.');
+  const body = {
+    pinataContent: obj,
+    pinataMetadata: { name: name || (reportId ? `civicchain-${reportId}-metadata` : 'civicchain-metadata'), keyvalues: keyvalues({ reportId, kind: 'nft-metadata' }) },
+    pinataOptions: { cidVersion: 1 },
+  };
+  const res = await postWithRetry(PIN_JSON_URL, body, { Authorization: `Bearer ${jwt}`, 'Content-Type': 'application/json' });
+  const cid = res.data?.IpfsHash;
+  if (!cid) throw new IpfsError('IPFS_FAILED', 'Pinata returned no CID for the metadata.');
+  return result(cid);
 }

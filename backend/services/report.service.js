@@ -1,53 +1,51 @@
 /**
- * report.service.js — CivicChain Unified Report Processing Service
+ * report.service.js — CivicChain report pipeline
  *
- * Phase 7:  processReport   — AI + IPFS in parallel
- * Phase 8:  createFullReport — AI + IPFS + Blockchain (full pipeline)
- * Phase 9:  Fraud gate       — AI → Fraud Check → (IPFS + Blockchain) or Reject
- * Phase 10: Rewards + Reputation after blockchain
- * Phase 11: Duplicate detection before IPFS
+ * processReport()    AI + IPFS preview (no NFT, nothing stored)
+ * createFullReport() the full pipeline. The order is mandatory — an NFT is
+ *                    never minted before every gate has passed:
+ *
+ *   1  AI analysis (Gemini)      error → AI_FAILED · not civic → NOT_CIVIC_ISSUE
+ *   2  Fraud gate                score ≥ 71 → FRAUD_BLOCKED (31–70 → warning)
+ *   3  Duplicate check (SHA-256) match → DUPLICATE (links the original report)
+ *   4  Report ID                 existing RP-<timestamp> format
+ *   5  IPFS image                failure → IPFS_FAILED (nothing stored)
+ *   6  NFT metadata → IPFS       failure → IPFS_FAILED (nothing stored)
+ *   7  Store report              NFT_MINT_PENDING; register hash; auto-assign; OPEN
+ *   8  Mint on Sepolia           serialised queue; wait up to MINT_WAIT_MS
+ *   9  Confirmed                 NFT_MINTED (token id from the event)
+ *   10 Gamification              off-chain points + reputation
  */
 
-import { analyzeImage }  from './ai.service.js';
-import { uploadToIPFS }  from './ipfs.service.js';
-import { createReport as createBlockchainReport } from './blockchain.service.js';
-import { calculateFraudScore }              from './fraud.service.js';
-import { checkDuplicate, registerHash }     from './duplicate.service.js';
-import { awardForReport }                   from './reward.service.js';
-import { increaseForReport }                from './reputation.service.js';
+import crypto from 'crypto';
+import { analyzeImage }            from './ai.service.js';
+import { uploadToIPFS, uploadJSON } from './ipfs.service.js';
+import { calculateFraudScore }     from './fraud.service.js';
+import { checkDuplicate, registerHash } from './duplicate.service.js';
+import { awardForReport }          from './reward.service.js';
+import { increaseForReport }       from './reputation.service.js';
+import { buildCivicIssueMetadata } from './nftMetadata.service.js';
+import { getDepartmentForCategory } from './department.service.js';
+import { getCityName }             from './jurisdiction.service.js';
+import { ensureAssigned }          from './assignment.service.js';
+import { registerReport }          from './workflow.service.js';
+import { addReport, getReportById, reportExists } from './reportCache.js';
+import { mintForReport }           from './nftMint.service.js';
+import { redact }                  from '../utils/redact.js';
 
-// ─── Phase 7 — AI + IPFS ─────────────────────────────────────────────────────
+// ─── Preview — AI + IPFS (no NFT) ────────────────────────────────────────────
 
-/**
- * Process a report image: run Gemini Vision + pin to IPFS in parallel.
- *
- * @param {Buffer} buffer
- * @param {string} mimeType
- * @param {string} filename
- * @param {object} [meta]  { reporter, location }
- */
 export async function processReport(buffer, mimeType, filename, meta = {}) {
   const [aiResult, ipfsResult] = await Promise.allSettled([
     analyzeImage(buffer, mimeType),
-    uploadToIPFS(buffer, mimeType, filename, {
-      source:   'CivicChain-report',
-      reporter: meta.reporter || 'unknown',
-      location: meta.location || 'unknown',
-    }),
+    uploadToIPFS(buffer, mimeType, filename, { kind: 'preview', sha256: sha256(buffer) }),
   ]);
 
   const analysis = aiResult.status === 'fulfilled'
     ? aiResult.value
-    : {
-        isCivicIssue: false,
-        category:     'OTHER',
-        severity:     'LOW',
-        confidence:   0,
-        reason:       `AI analysis failed: ${aiResult.reason?.message || 'unknown error'}`,
-      };
+    : { isCivicIssue: false, category: 'OTHER', severity: 'LOW', confidence: 0, reason: `AI analysis failed: ${aiResult.reason?.message || 'unknown error'}` };
 
   const evidence = ipfsResult.status === 'fulfilled' ? ipfsResult.value : null;
-
   const errors = {
     ai:   aiResult.status   === 'rejected' ? (aiResult.reason?.message   || 'AI error')   : null,
     ipfs: ipfsResult.status === 'rejected' ? (ipfsResult.reason?.message || 'IPFS error') : null,
@@ -55,287 +53,246 @@ export async function processReport(buffer, mimeType, filename, meta = {}) {
 
   if (!evidence) {
     const err = new Error(errors.ipfs || 'IPFS upload failed');
+    err.code = ipfsResult.reason?.code || 'IPFS_FAILED';
     err.analysis = analysis;
     throw err;
   }
-
+  void meta;
   return { analysis, evidence, errors };
 }
 
-// ─── Phase 8–11 — AI → Fraud → Duplicate → IPFS → Blockchain → Rewards ──────
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function sha256(buffer) {
+  return crypto.createHash('sha256').update(buffer).digest('hex');
+}
+
+/** Existing report id format (RP-<ms timestamp>), made unique under concurrency. */
+export function generateReportId() {
+  let ts = Date.now();
+  while (reportExists(`RP-${ts}`)) ts++;
+  return `RP-${ts}`;
+}
+
+function mintWaitMs() {
+  const n = Number(process.env.MINT_WAIT_MS);
+  return Number.isFinite(n) && n >= 0 ? n : 90_000;
+}
+
+function aiFailureStatus(e) {
+  const msg = String(e?.message || '').toLowerCase();
+  if (msg.includes('gemini_api_key') || msg.includes('quota') || msg.includes('429') || msg.includes('rate')) return 503;
+  return 502;
+}
+
+function ipfsFailureStatus(e) {
+  return e?.code === 'IPFS_AUTH_FAILED' || e?.code === 'IPFS_QUOTA' ? 503 : 502;
+}
+
+class Pipeline {
+  constructor() { this.stages = []; }
+  async run(stage, fn) {
+    const t = Date.now();
+    try {
+      const v = await fn();
+      this.stages.push({ stage, status: 'done', ms: Date.now() - t });
+      return v;
+    } catch (e) {
+      this.stages.push({ stage, status: 'failed', ms: Date.now() - t, detail: redact(e?.message || 'failed').slice(0, 200) });
+      throw e;
+    }
+  }
+  mark(stage, status, detail) {
+    this.stages.push({ stage, status, ms: 0, ...(detail ? { detail } : {}) });
+  }
+  skipRest(from) {
+    const order = ['AI_ANALYSIS', 'FRAUD_CHECK', 'DUPLICATE_CHECK', 'IPFS_IMAGE', 'NFT_METADATA', 'NFT_MINT', 'NFT_CONFIRMED', 'CONTRIBUTION_RECORDED'];
+    for (const s of order.slice(order.indexOf(from))) {
+      if (!this.stages.find((x) => x.stage === s)) this.stages.push({ stage: s, status: 'skipped', ms: 0 });
+    }
+  }
+}
+
+export const PIPELINE_STAGES = ['AI_ANALYSIS', 'FRAUD_CHECK', 'DUPLICATE_CHECK', 'IPFS_IMAGE', 'NFT_METADATA', 'NFT_MINT', 'NFT_CONFIRMED', 'CONTRIBUTION_RECORDED'];
+
+function publicNft(nft) {
+  if (!nft) return null;
+  return {
+    status: nft.status,
+    tokenId: nft.tokenId ?? null,
+    transactionHash: nft.transactionHash ?? null,
+    contractAddress: nft.contractAddress ?? null,
+    recipient: nft.recipient ?? null,
+    metadataCid: nft.metadataCid ?? null,
+    imageCid: nft.imageCid ?? null,
+    tokenURI: nft.tokenURI ?? null,
+    blockNumber: nft.blockNumber ?? null,
+    mintedAt: nft.mintedAt ?? null,
+    explorerUrl: nft.explorerUrl ?? null,
+    tokenExplorerUrl: nft.tokenExplorerUrl ?? null,
+    attempts: nft.attempts ?? 0,
+    ...(nft.errorCode ? { errorCode: nft.errorCode, errorMessage: nft.errorMessage || null } : {}),
+  };
+}
+export { publicNft };
+
+// ─── Full pipeline ───────────────────────────────────────────────────────────
 
 /**
- * Full pipeline:
- *
- *   1. Gemini Vision analysis
- *   2. Fraud detection (Phase 9)      — blocks non-civic images
- *   3. Duplicate detection (Phase 11) — blocks re-submitted images
- *   4. IPFS upload                    — only if checks pass
- *   5. Blockchain tx                  — only if checks pass
- *   6. Reward + Reputation (Phase 10) — after blockchain
- *
- * @param {Buffer} buffer
- * @param {string} mimeType
+ * @param {Buffer} buffer    validated image bytes
+ * @param {string} mimeType  image/jpeg | image/png | image/webp
  * @param {string} filename
- * @param {object} [meta]  { reporter, location, description }
- *
- * @returns {Promise<{
- *   reportId:   string,
- *   analysis:   object,
- *   fraud:      object,
- *   evidence?:  object,
- *   blockchain?: object,
- *   blocked?:   boolean,
- *   duplicate?: boolean,
- * }>}
+ * @param {object} meta      { reporter (checksum 0x, from the JWT), city (code), landmark }
+ * @returns {Promise<{ httpStatus: number, body: object }>}
  */
-export async function createFullReport(buffer, mimeType, filename, meta = {}) {
-  const reportId = `RP-${Date.now()}`;
-
-  // ── Step 1: AI Analysis ────────────────────────────────────────────────────
-  let analysis;
-  try {
-    analysis = await analyzeImage(buffer, mimeType);
-  } catch (e) {
-    analysis = {
-      isCivicIssue: false,
-      category:     'OTHER',
-      severity:     'LOW',
-      confidence:   0,
-      reason:       `AI failed: ${e.message || 'unknown'}`,
-    };
-  }
-
-  // ── Step 2: Fraud Detection (Phase 9) ──────────────────────────────────────
-  const fraud = calculateFraudScore(analysis);
-
-  if (!fraud.allowed) {
-    // BLOCKED — do NOT upload to IPFS, do NOT send to blockchain
-    return {
-      success:    false,
-      reportId,
-      blocked:    true,
-      fraudScore: fraud.fraudScore,
-      riskLevel:  fraud.riskLevel,
-      reason:     fraud.reason,
-      analysis,
-      fraud,
-    };
-  }
-
-  // ── Step 3: Duplicate Detection (Phase 11) ─────────────────────────────────
-  const dupCheck = checkDuplicate(buffer, reportId);
-
-  if (dupCheck.isDuplicate) {
-    // DUPLICATE — do NOT upload to IPFS, do NOT send to blockchain, do NOT award rewards
-    return {
-      success:         false,
-      reportId,
-      duplicate:       true,
-      similarity:      dupCheck.similarity,
-      existingReportId: dupCheck.existingReportId,
-      reason:          dupCheck.reason,
-      analysis,
-      fraud,
-    };
-  }
-
-  // ── Step 4: IPFS Upload (only if all checks passed) ────────────────────────
-  let evidence;
-  try {
-    evidence = await uploadToIPFS(buffer, mimeType, filename, {
-      source:   'CivicChain-report',
-      reportId,
-      reporter: meta.reporter || 'unknown',
-      location: meta.location || 'unknown',
-    });
-  } catch (e) {
-    const err = new Error(`IPFS upload failed: ${e.message || 'unknown'}`);
-    err.analysis = analysis;
-    err.fraud    = fraud;
-    throw err;
-  }
-
-  // ── Step 5: Blockchain Transaction ─────────────────────────────────────────
-  const blockchain = await createBlockchainReport({
-    reportId,
-    category:    analysis.category,
-    severity:    analysis.severity,
-    confidence:  analysis.confidence,
-    cid:         evidence.cid,
-    description: meta.description
-      || analysis.reason
-      || `AI-detected civic issue: ${analysis.category}`,
-    location:    meta.location || 'Unknown',
+export async function createFullReport(buffer, mimeType, filename, meta) {
+  const pipeline = new Pipeline();
+  const reporter = meta.reporter;
+  const cityCode = meta.city;
+  const cityName = getCityName(cityCode);
+  const landmark = (meta.landmark || '').trim();
+  const reject = (httpStatus, status, extra = {}) => ({
+    httpStatus,
+    body: { success: false, status, pipeline: pipeline.stages, address: reporter, city: cityCode, cityName, ...extra },
   });
 
-  // ── Step 5.5: Register hash in duplicate index (Phase 11) ──────────────────
-  registerHash(dupCheck.hash, reportId);
-
-  // ── Step 6: Reward + Reputation (Phase 10) ──────────────────────────────────
-  let rewards = null;
-  let reputation = null;
-
-  try {
-    rewards = await awardForReport(blockchain.sender, analysis);
-    console.log('[REWARD_AWARDED] Points earned:', rewards.earned, 'Reasons:', rewards.reason);
-  } catch (e) {
-    console.error('[REWARD_AWARDED] Failed:', e.message);
-    rewards = { earned: 0, reason: [] };
-  }
-
-  try {
-    reputation = await increaseForReport(blockchain.sender, analysis);
-    console.log('[REPUTATION_UPDATED] Reputation earned:', reputation.earned);
-  } catch (e) {
-    console.error('[REPUTATION_UPDATED] Failed:', e.message);
-    reputation = { earned: 0 };
-  }
-
-  return {
-    reportId,
-    analysis,
-    fraud,
-    evidence,
-    blockchain,
-    rewards,
-    reputation,
-  };
-}
-
-// ─── Phase 16 — User-signed report flow (split pipeline) ────────────────────
-//
-// The REPORT_CREATE transaction is now signed and paid for by the reporter's
-// OWN wallet, client-side — not the server deployer. The server can never see
-// the user's private key, and the signature must cover the AI-derived
-// category/severity and the IPFS cid, so the pipeline is split in two:
-//
-//   prepareReport()  — AI → fraud → duplicate → IPFS   (no chain write)
-//   finalizeReport() — after the client broadcasts the user-signed tx:
-//                      register the duplicate hash + award rewards/reputation
-//                      (now credited to the reporter's address).
-
-/**
- * Steps 1–4 of the pipeline, with no blockchain write. Returns everything the
- * client needs to build and sign the REPORT_CREATE transaction itself.
- *
- * @returns {Promise<object>} { success, reportId, analysis, fraud, evidence,
- *                              dupHash, description, location } — or
- *                            { blocked } / { duplicate } on rejection.
- */
-export async function prepareReport(buffer, mimeType, filename, meta = {}) {
-  const reportId = `RP-${Date.now()}`;
-
-  // ── Step 1: AI Analysis ────────────────────────────────────────────────────
+  // 1 ── AI analysis ──────────────────────────────────────────────────────────
   let analysis;
   try {
-    analysis = await analyzeImage(buffer, mimeType);
+    analysis = await pipeline.run('AI_ANALYSIS', () => analyzeImage(buffer, mimeType));
   } catch (e) {
-    analysis = {
-      isCivicIssue: false,
-      category:     'OTHER',
-      severity:     'LOW',
-      confidence:   0,
-      reason:       `AI failed: ${e.message || 'unknown'}`,
-    };
-  }
-
-  // ── Step 2: Fraud Detection (Phase 9) ──────────────────────────────────────
-  const fraud = calculateFraudScore(analysis);
-  if (!fraud.allowed) {
-    return {
-      success:    false,
-      reportId,
-      blocked:    true,
-      fraudScore: fraud.fraudScore,
-      riskLevel:  fraud.riskLevel,
-      reason:     fraud.reason,
-      analysis,
-      fraud,
-    };
-  }
-
-  // ── Step 3: Duplicate Detection (Phase 11) ─────────────────────────────────
-  const dupCheck = checkDuplicate(buffer, reportId);
-  if (dupCheck.isDuplicate) {
-    return {
-      success:          false,
-      reportId,
-      duplicate:        true,
-      similarity:       dupCheck.similarity,
-      existingReportId: dupCheck.existingReportId,
-      reason:           dupCheck.reason,
-      analysis,
-      fraud,
-    };
-  }
-
-  // ── Step 4: IPFS Upload ────────────────────────────────────────────────────
-  let evidence;
-  try {
-    evidence = await uploadToIPFS(buffer, mimeType, filename, {
-      source:   'CivicChain-report',
-      reportId,
-      reporter: meta.reporter || 'unknown',
-      location: meta.location || 'unknown',
+    pipeline.skipRest('FRAUD_CHECK');
+    return reject(aiFailureStatus(e), 'AI_FAILED', {
+      error: 'AI verification is unavailable right now. Nothing was stored — please try again.',
+      detail: redact(e?.message || '').slice(0, 200),
     });
-  } catch (e) {
-    const err = new Error(`IPFS upload failed: ${e.message || 'unknown'}`);
-    err.analysis = analysis;
-    err.fraud    = fraud;
-    throw err;
+  }
+  if (!analysis.isCivicIssue) {
+    pipeline.skipRest('FRAUD_CHECK');
+    return reject(422, 'NOT_CIVIC_ISSUE', { analysis, error: analysis.reason || 'The photo does not show a civic issue.' });
   }
 
-  const description = meta.description
-    || analysis.reason
-    || `AI-detected civic issue: ${analysis.category}`;
+  // 2 ── Fraud gate ───────────────────────────────────────────────────────────
+  const fraudResult = await pipeline.run('FRAUD_CHECK', () => calculateFraudScore(analysis));
+  const fraud = { score: fraudResult.fraudScore, warning: fraudResult.allowed && fraudResult.fraudScore > 30, riskLevel: fraudResult.riskLevel, reason: fraudResult.reason };
+  if (!fraudResult.allowed) {
+    pipeline.skipRest('DUPLICATE_CHECK');
+    return reject(422, 'FRAUD_BLOCKED', { analysis, fraud, blocked: true, fraudScore: fraud.score, riskLevel: fraud.riskLevel, error: fraudResult.reason });
+  }
 
-  // dupHash is returned so finalizeReport() can register it only AFTER the
-  // user-signed tx is broadcast (a hash registered here would block re-tries
-  // if the broadcast fails).
-  return {
-    success:     true,
-    reportId,
-    analysis,
-    fraud,
-    evidence,
-    dupHash:     dupCheck.hash,
-    description,
-    location:    meta.location || 'Unknown',
+  // 3 ── Duplicate check ─────────────────────────────────────────────────────
+  const imageSha256 = sha256(buffer);
+  const dup = await pipeline.run('DUPLICATE_CHECK', () => checkDuplicate(buffer));
+  if (dup.isDuplicate) {
+    pipeline.skipRest('IPFS_IMAGE');
+    return reject(409, 'DUPLICATE', {
+      analysis, fraud, duplicate: true, existingReportId: dup.existingReportId,
+      error: 'This image has already been reported.', reason: dup.reason,
+    });
+  }
+
+  // 4 ── Report ID ───────────────────────────────────────────────────────────
+  const reportId = generateReportId();
+  const createdAt = Date.now();
+  const department = getDepartmentForCategory(analysis.category);
+
+  // 5 ── IPFS image ──────────────────────────────────────────────────────────
+  let image;
+  try {
+    image = await pipeline.run('IPFS_IMAGE', () => uploadToIPFS(buffer, mimeType, filename, { reportId, sha256: imageSha256 }));
+  } catch (e) {
+    pipeline.skipRest('NFT_METADATA');
+    return reject(ipfsFailureStatus(e), 'IPFS_FAILED', { reportId, analysis, fraud, errorCode: e?.code || 'IPFS_FAILED', error: e?.message || 'IPFS upload failed. Nothing was stored.' });
+  }
+
+  // 6 ── NFT metadata ────────────────────────────────────────────────────────
+  let metaPin;
+  try {
+    const metadata = buildCivicIssueMetadata({ reportId, analysis, city: cityName, department, submittedAt: createdAt, imageCid: image.cid, imageSha256 });
+    metaPin = await pipeline.run('NFT_METADATA', () => uploadJSON(metadata, { reportId }));
+  } catch (e) {
+    if (!pipeline.stages.find((s) => s.stage === 'NFT_METADATA')) pipeline.mark('NFT_METADATA', 'failed', redact(e.message));
+    pipeline.skipRest('NFT_MINT');
+    return reject(ipfsFailureStatus(e), 'IPFS_FAILED', { reportId, analysis, fraud, errorCode: e?.code || 'IPFS_FAILED', error: e?.message || 'Metadata upload failed. Nothing was stored.' });
+  }
+
+  const evidence = {
+    imageCid: image.cid,
+    imageUrl: image.gatewayUrl,
+    metadataCid: metaPin.cid,
+    metadataUrl: metaPin.gatewayUrl,
+    imageSha256,
   };
-}
+  const tokenURI = `ipfs://${metaPin.cid}`;
 
-/**
- * Step 5.5 + 6 of the pipeline, run after the client has broadcast the
- * user-signed REPORT_CREATE. Registers the duplicate hash and awards
- * rewards/reputation to the reporter's address.
- *
- * @param {object} p  { reportId, sender, analysis, dupHash }
- * @returns {Promise<{ rewards: object, reputation: object }>}
- */
-export async function finalizeReport({ reportId, sender, analysis, dupHash }) {
-  // ── Register hash in duplicate index now that the report is on chain ───────
-  if (dupHash) registerHash(dupHash, reportId);
+  // 7 ── Persist the report BEFORE minting ────────────────────────────────────
+  const report = {
+    id: reportId,
+    reportId,
+    reporter,
+    category: analysis.category,
+    severity: analysis.severity,
+    confidence: analysis.confidence,
+    reason: analysis.reason,
+    description: analysis.reason,
+    location: { address: landmark || 'Unknown location', city: cityCode },
+    city: cityCode,
+    cityName,
+    department,
+    status: 'OPEN',
+    fraud,
+    createdAt,
+    updatedAt: createdAt,
+    evidence,
+    nft: { status: 'NFT_MINT_PENDING', attempts: 0, tokenURI, metadataCid: metaPin.cid, imageCid: image.cid },
+  };
+  addReport(report);
+  registerHash(imageSha256, reportId);
+  ensureAssigned([report]);
+  registerReport(reportId, reporter);
 
-  // ── Reward + Reputation (Phase 10) — credited to the reporter ──────────────
-  let rewards = null;
-  let reputation = null;
-
-  try {
-    rewards = await awardForReport(sender, analysis);
-    console.log('[REWARD_AWARDED] Points earned:', rewards.earned, 'Reasons:', rewards.reason);
-  } catch (e) {
-    console.error('[REWARD_AWARDED] Failed:', e.message);
-    rewards = { earned: 0, reason: [] };
+  // 8/9 ── Mint (wait at most MINT_WAIT_MS; the mint keeps going in the background)
+  const t0 = Date.now();
+  const mintPromise = mintForReport(reportId);
+  const waited = await Promise.race([mintPromise, new Promise((r) => setTimeout(() => r(null), mintWaitMs()).unref?.())]);
+  const stored = getReportById(reportId);
+  const nft = stored?.nft || waited || report.nft;
+  const mintMs = Date.now() - t0;
+  if (nft.status === 'NFT_MINTED') {
+    pipeline.mark('NFT_MINT', 'done');
+    pipeline.stages.push({ stage: 'NFT_CONFIRMED', status: 'done', ms: mintMs });
+  } else if (nft.status === 'NFT_MINT_PENDING') {
+    pipeline.stages.push({ stage: 'NFT_MINT', status: nft.transactionHash ? 'done' : 'pending', ms: mintMs });
+    pipeline.mark('NFT_CONFIRMED', 'pending');
+  } else {
+    pipeline.stages.push({ stage: 'NFT_MINT', status: 'failed', ms: mintMs, detail: nft.errorCode || 'UNKNOWN' });
+    pipeline.mark('NFT_CONFIRMED', 'skipped');
   }
 
-  try {
-    reputation = await increaseForReport(sender, analysis);
-    console.log('[REPUTATION_UPDATED] Reputation earned:', reputation.earned);
-  } catch (e) {
-    console.error('[REPUTATION_UPDATED] Failed:', e.message);
-    reputation = { earned: 0 };
-  }
+  // 10 ── Off-chain gamification (independent of the mint outcome) ─────────────
+  const points = await pipeline.run('CONTRIBUTION_RECORDED', async () => awardForReport(reporter, analysis));
+  const reputation = await increaseForReport(reporter, analysis);
 
-  return { rewards, reputation };
+  const httpStatus = nft.status === 'NFT_MINTED' ? 201 : 202;
+  return {
+    httpStatus,
+    body: {
+      success: true,
+      status: nft.status,
+      reportId,
+      analysis,
+      fraud,
+      evidence,
+      nft: publicNft(nft),
+      reputation,
+      points,
+      rewards: points,               // compatibility with older clients
+      city: cityCode,
+      cityName,
+      department,
+      address: reporter,
+      landmark: landmark || null,
+      pipeline: pipeline.stages,
+    },
+  };
 }

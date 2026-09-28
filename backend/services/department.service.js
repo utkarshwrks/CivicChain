@@ -10,6 +10,8 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { dataPath } from '../config/paths.js';
 
+const debug = (...args) => { if (process.env.LOG_LEVEL === 'debug') console.log(...args); };
+
 const __dirname       = path.dirname(fileURLToPath(import.meta.url));
 const USER_DEPT_PATH  = dataPath('user-departments.json');
 const LOG             = '[DEPT]';
@@ -48,6 +50,9 @@ export const CATEGORY_TO_DEPARTMENT = {
   FLOOD:            'DRAINAGE_DEPARTMENT',
   FIRE:             'FIRE_DEPARTMENT',
   WATER_LEAK:       'WATER_DEPARTMENT',
+  WATER_LEAKAGE:    'WATER_DEPARTMENT',     // Gemini category
+  SEWAGE:           'DRAINAGE_DEPARTMENT',  // Gemini category
+  PUBLIC_SAFETY:    'URBAN_DEPARTMENT',     // Gemini category
   UNSAFE_BUILDING:  'URBAN_DEPARTMENT',
   OTHER:            'GENERAL_DEPARTMENT',
 };
@@ -65,7 +70,7 @@ function loadUserDepts() {
   try {
     if (fs.existsSync(USER_DEPT_PATH)) {
       userDepts = JSON.parse(fs.readFileSync(USER_DEPT_PATH, 'utf8'));
-      console.log(`${LOG} Loaded ${Object.keys(userDepts).length} user-department assignments`);
+      debug(`${LOG} Loaded ${Object.keys(userDepts).length} user-department assignments`);
     }
   } catch (e) {
     console.warn(`${LOG} Failed to load user-departments.json:`, e.message);
@@ -105,9 +110,9 @@ export function setUserDepartment(address, department) {
   userDepts[address.toLowerCase()] = department;
   saveUserDepts();
   if (prev && prev !== department) {
-    console.log(`${LOG} Reassigned ${address.slice(0, 10)}… ${prev} → ${department}`);
+    debug(`${LOG} Reassigned ${address.slice(0, 10)}… ${prev} → ${department}`);
   } else {
-    console.log(`${LOG} Assigned ${address.slice(0, 10)}… → ${department}`);
+    debug(`${LOG} Assigned ${address.slice(0, 10)}… → ${department}`);
   }
 }
 
@@ -117,7 +122,7 @@ export function setUserDepartment(address, department) {
 export function removeUserDepartment(address) {
   delete userDepts[address.toLowerCase()];
   saveUserDepts();
-  console.log(`${LOG} Removed department for ${address.slice(0, 10)}…`);
+  debug(`${LOG} Removed department for ${address.slice(0, 10)}…`);
 }
 
 /**

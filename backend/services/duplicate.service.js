@@ -15,6 +15,8 @@ import path   from 'path';
 import { fileURLToPath } from 'url';
 import { dataPath } from '../config/paths.js';
 
+const debug = (...args) => { if (process.env.LOG_LEVEL === 'debug') console.log(...args); };
+
 const __dirname   = path.dirname(fileURLToPath(import.meta.url));
 const INDEX_PATH  = dataPath('duplicate-index.json');
 const LOG         = '[DUPLICATE_CHECK]';
@@ -27,10 +29,10 @@ function loadIndex() {
   try {
     const raw = fs.readFileSync(INDEX_PATH, 'utf8');
     duplicateIndex = JSON.parse(raw);
-    console.log(`${LOG} Loaded ${duplicateIndex.length} entries from disk`);
+    debug(`${LOG} Loaded ${duplicateIndex.length} entries from disk`);
   } catch {
     duplicateIndex = [];
-    console.log(`${LOG} No existing index found — starting fresh`);
+    debug(`${LOG} No existing index found — starting fresh`);
   }
 }
 
@@ -78,20 +80,20 @@ function generateHash(buffer) {
 export function checkDuplicate(buffer, reportId) {
   const hash = generateHash(buffer);
 
-  console.log(`${LOG} ─── Checking image hash ───`);
-  console.log(`${LOG} SHA256: ${hash}`);
-  console.log(`${LOG} Index size: ${duplicateIndex.length} entries`);
+  debug(`${LOG} ─── Checking image hash ───`);
+  debug(`${LOG} SHA256: ${hash}`);
+  debug(`${LOG} Index size: ${duplicateIndex.length} entries`);
 
   // ── Phase 11A: Exact SHA256 match ──────────────────────────────────────────
   const exactMatch = duplicateIndex.find(entry => entry.hash === hash);
 
   if (exactMatch) {
-    console.log(`${LOG} ═══════════════════════════════`);
-    console.log(`${LOG}  DUPLICATE DETECTED ❌`);
-    console.log(`${LOG}  Match type:  EXACT (SHA256)`);
-    console.log(`${LOG}  Similarity:  100%`);
-    console.log(`${LOG}  Existing:    ${exactMatch.reportId}`);
-    console.log(`${LOG} ═══════════════════════════════`);
+    debug(`${LOG} ═══════════════════════════════`);
+    debug(`${LOG}  DUPLICATE DETECTED ❌`);
+    debug(`${LOG}  Match type:  EXACT (SHA256)`);
+    debug(`${LOG}  Similarity:  100%`);
+    debug(`${LOG}  Existing:    ${exactMatch.reportId}`);
+    debug(`${LOG} ═══════════════════════════════`);
 
     return {
       isDuplicate:      true,
@@ -102,9 +104,9 @@ export function checkDuplicate(buffer, reportId) {
     };
   }
 
-  console.log(`${LOG} ═══════════════════════════════`);
-  console.log(`${LOG}  NO DUPLICATE ✅`);
-  console.log(`${LOG} ═══════════════════════════════`);
+  debug(`${LOG} ═══════════════════════════════`);
+  debug(`${LOG}  NO DUPLICATE ✅`);
+  debug(`${LOG} ═══════════════════════════════`);
 
   return { isDuplicate: false, hash };
 }
@@ -123,7 +125,7 @@ export function registerHash(hash, reportId) {
     timestamp: Date.now(),
   });
 
-  console.log(`${LOG} Registered hash for ${reportId} (total: ${duplicateIndex.length})`);
+  debug(`${LOG} Registered hash for ${reportId} (total: ${duplicateIndex.length})`);
 
   // Persist to disk
   saveIndex();

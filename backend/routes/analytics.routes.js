@@ -8,6 +8,7 @@
  * GET /api/analytics/hotspots
  * GET /api/analytics/trends
  * GET /api/analytics/insights
+ * GET /api/analytics/nfts
  */
 
 import { Router } from 'express';
@@ -19,6 +20,7 @@ import {
   hotspotsController,
   trendsController,
   insightsController,
+  nftsController,
 } from '../controllers/analytics.controller.js';
 
 const router = Router();
@@ -30,5 +32,6 @@ router.get('/top-reporters',  topReportersController);
 router.get('/hotspots',       hotspotsController);
 router.get('/trends',         trendsController);
 router.get('/insights',       insightsController);
+router.get('/nfts',           nftsController);
 
 export default router;

@@ -5,7 +5,6 @@
  * Transforms raw report data into civic intelligence.
  */
 
-const LOG = '[ANALYTICS]';
 
 // ─── Time helpers ─────────────────────────────────────────────────────────────
 
@@ -28,9 +27,13 @@ export function getOverview(reports) {
     ? parseFloat(((resolvedReports / totalReports) * 100).toFixed(1))
     : 0;
 
-  console.log(`${LOG} Overview: total=${totalReports} open=${openReports} resolved=${resolvedReports} verified=${verifiedReports}`);
+  const inProgressReports = reports.filter(r => r.status === 'IN_PROGRESS').length;
+  const nft = getNftAnalytics(reports);
 
-  return { totalReports, openReports, resolvedReports, verifiedReports, resolutionRate };
+  return {
+    totalReports, openReports, resolvedReports, verifiedReports, inProgressReports, resolutionRate,
+    totalNFTs: nft.totalNFTs, mintSuccessRate: nft.mintSuccessRate,
+  };
 }
 
 // ─── API 2: Category Distribution ─────────────────────────────────────────────
@@ -46,7 +49,6 @@ export function getCategoryDistribution(reports) {
     dist[cat] = (dist[cat] || 0) + 1;
   }
 
-  console.log(`${LOG} Categories:`, dist);
   return dist;
 }
 
@@ -63,7 +65,6 @@ export function getSeverityDistribution(reports) {
     dist[sev] = (dist[sev] || 0) + 1;
   }
 
-  console.log(`${LOG} Severity:`, dist);
   return dist;
 }
 
@@ -94,7 +95,6 @@ export function getTopReporters(reports, pointsMap = {}, reputationMap = {}, lim
     .sort((a, b) => b.reports - a.reports)
     .slice(0, limit);
 
-  console.log(`${LOG} Top reporters: ${top.length} entries`);
   return top;
 }
 
@@ -108,9 +108,7 @@ export function getTopReporters(reports, pointsMap = {}, reputationMap = {}, lim
 export function getHotspots(reports, limit = 10) {
   const counts = {};
   for (const r of reports) {
-    // Normalise location — trim, collapse whitespace, title-case first word
-    let loc = (r.location || 'Unknown').toString().trim();
-    if (!loc || loc === '{}' || loc === '""') loc = 'Unknown';
+    const loc = locationLabel(r);
     counts[loc] = (counts[loc] || 0) + 1;
   }
 
@@ -119,8 +117,19 @@ export function getHotspots(reports, limit = 10) {
     .sort((a, b) => b.reports - a.reports)
     .slice(0, limit);
 
-  console.log(`${LOG} Hotspots: ${hotspots.length} locations identified`);
   return hotspots;
+}
+
+/** Readable hotspot label: "<landmark> · <City>" or the city alone. */
+export function locationLabel(r) {
+  let loc = r.location;
+  if (typeof loc === 'string') {
+    try { loc = JSON.parse(loc); } catch { return loc.trim() || 'Unknown'; }
+  }
+  const address = loc?.address && loc.address !== 'Unknown location' ? String(loc.address).trim() : null;
+  const cityCode = r.city || loc?.city || null;
+  const city = r.cityName || (cityCode ? cityCode.charAt(0) + cityCode.slice(1).toLowerCase() : null);
+  return [address, city].filter(Boolean).join(' · ') || 'Unknown';
 }
 
 // ─── API 6: Trend Analysis ────────────────────────────────────────────────────
@@ -136,7 +145,6 @@ export function getTrends(reports) {
   const week  = reports.filter(r => (now - r.createdAt) < MS_WEEK).length;
   const month = reports.filter(r => (now - r.createdAt) < MS_MONTH).length;
 
-  console.log(`${LOG} Trends: today=${today} week=${week} month=${month}`);
   return { today, week, month };
 }
 
@@ -206,6 +214,38 @@ export function generateInsights(reports) {
     insights.push(`${reports.length} civic reports are being tracked across the system.`);
   }
 
-  console.log(`${LOG} Generated ${insights.length} insights`);
   return { insights };
+}
+
+// ─── Civic Issue NFT metrics ──────────────────────────────────────────────────
+
+/**
+ * @returns {{ totalNFTs, byCategory, byCity, bySeverity, minted, pending, failed, legacy, mintSuccessRate }}
+ * mintSuccessRate = minted / (minted + failed) × 100 (null when nothing was attempted)
+ */
+export function getNftAnalytics(reports) {
+  const minted = reports.filter(r => r.nft?.status === 'NFT_MINTED');
+  const pending = reports.filter(r => r.nft?.status === 'NFT_MINT_PENDING').length;
+  const failed = reports.filter(r => r.nft?.status === 'NFT_MINT_FAILED').length;
+  const legacy = reports.filter(r => !r.nft || r.nft.status === 'NOT_ELIGIBLE_LEGACY').length;
+  const count = (key) => {
+    const out = {};
+    for (const r of minted) {
+      const k = r[key] || 'UNKNOWN';
+      out[k] = (out[k] || 0) + 1;
+    }
+    return out;
+  };
+  const attempted = minted.length + failed;
+  return {
+    totalNFTs: minted.length,
+    byCategory: count('category'),
+    byCity: count('city'),
+    bySeverity: count('severity'),
+    minted: minted.length,
+    pending,
+    failed,
+    legacy,
+    mintSuccessRate: attempted ? parseFloat(((minted.length / attempted) * 100).toFixed(1)) : null,
+  };
 }
