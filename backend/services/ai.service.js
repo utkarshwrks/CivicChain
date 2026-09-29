@@ -1,15 +1,22 @@
 /**
  * ai.service.js — CivicChain AI Vision Service
  *
- * Sends an uploaded image to Gemini 2.5 Flash Vision and returns a
+ * Sends an uploaded image to Gemini Flash Vision and returns a
  * structured JSON object classifying whether the image depicts a civic
  * issue, what category it falls into, severity, confidence, and a
  * human-readable reason.
+ *
+ * Model: GEMINI_MODEL (default gemini-flash-latest), falling back through
+ * GEMINI_FALLBACK_MODELS when a model is retired, overloaded or rate-limited.
  */
 
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { redactSecrets } from '../utils/redact.js';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
+
+const DEFAULT_MODEL = 'gemini-flash-latest';
+const DEFAULT_FALLBACK_MODELS = 'gemini-flash-lite-latest';
 
 const VALID_CATEGORIES = [
   'ROAD_DAMAGE',
@@ -69,10 +76,6 @@ function getClient() {
 export async function analyzeImage(imageBuffer, mimeType) {
   const genAI = getClient();
 
-  const model = genAI.getGenerativeModel({
-    model: 'gemini-2.5-flash',
-  });
-
   // Convert buffer to base64 inline part
   const imagePart = {
     inlineData: {
@@ -82,19 +85,52 @@ export async function analyzeImage(imageBuffer, mimeType) {
   };
 
   const timeoutMs = Number(process.env.AI_TIMEOUT_MS) || 45_000;
-  let timer;
-  const result = await Promise.race([
-    model.generateContent([SYSTEM_PROMPT, imagePart]),
-    new Promise((_, reject) => {
-      timer = setTimeout(() => reject(new Error(`Gemini timed out after ${timeoutMs} ms`)), timeoutMs);
-    }),
-  ]).finally(() => clearTimeout(timer));
-  const rawText  = result.response.text().trim();
+  const models = getModelChain();
+  let lastError;
 
-  return parseGeminiResponse(rawText);
+  for (const [i, name] of models.entries()) {
+    const model = genAI.getGenerativeModel({ model: name });
+    let timer;
+    try {
+      const result = await Promise.race([
+        model.generateContent([SYSTEM_PROMPT, imagePart]),
+        new Promise((_, reject) => {
+          timer = setTimeout(() => reject(new Error(`Gemini timed out after ${timeoutMs} ms`)), timeoutMs);
+        }),
+      ]).finally(() => clearTimeout(timer));
+      const rawText = result.response.text().trim();
+      return parseGeminiResponse(rawText);
+    } catch (err) {
+      lastError = err;
+      // Only fall back when the model itself is unavailable (retired, overloaded,
+      // rate-limited). Bad keys and bad output fail immediately.
+      if (i === models.length - 1 || !isModelUnavailable(err)) throw err;
+      console.warn(`[AI] ${name} unavailable (${redactSecrets(err.message).slice(0, 160)}) — trying ${models[i + 1]}`);
+    }
+  }
+  throw lastError;
 }
 
 // ─── Internal helpers ─────────────────────────────────────────────────────────
+
+/**
+ * Primary model from GEMINI_MODEL, then GEMINI_FALLBACK_MODELS (comma-separated).
+ * The "-latest" aliases follow Google's current Flash models, so a model
+ * retirement never needs a code change.
+ */
+function getModelChain() {
+  const primary   = (process.env.GEMINI_MODEL || DEFAULT_MODEL).trim();
+  const fallbacks = (process.env.GEMINI_FALLBACK_MODELS ?? DEFAULT_FALLBACK_MODELS)
+    .split(',').map((s) => s.trim()).filter(Boolean);
+  return [...new Set([primary, ...fallbacks])];
+}
+
+/** 404 (model retired), 429 (quota/rate), 500/503 (overloaded) or a timeout. */
+function isModelUnavailable(err) {
+  const msg = String(err?.message || '');
+  const status = err?.status ?? Number(msg.match(/\[(\d{3})\s/)?.[1]);
+  return [404, 429, 500, 503].includes(status) || /timed out/i.test(msg);
+}
 
 /**
  * Strip markdown fences if Gemini wraps output despite instructions,

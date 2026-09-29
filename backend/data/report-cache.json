@@ -77,7 +77,59 @@
       "nft": {
         "status": "NOT_ELIGIBLE_LEGACY"
       }
+    },
+    {
+      "id": "RP-1790659249234",
+      "reportId": "RP-1790659249234",
+      "reporter": "0xa40FEDCFAa63a5AD0f0eDF17A2DD1A64Ba7a5325",
+      "category": "FLOOD",
+      "severity": "HIGH",
+      "confidence": 95,
+      "reason": "Severe urban flooding has submerged the street, disrupting traffic and posing risks to pedestrians and commuters.",
+      "description": "Severe urban flooding has submerged the street, disrupting traffic and posing risks to pedestrians and commuters.",
+      "location": {
+        "address": "CivicChain e2e check",
+        "city": "JABALPUR"
+      },
+      "city": "JABALPUR",
+      "cityName": "Jabalpur",
+      "department": "DRAINAGE_DEPARTMENT",
+      "status": "OPEN",
+      "fraud": {
+        "score": 0,
+        "warning": false,
+        "riskLevel": "LOW",
+        "reason": "Valid civic issue — no fraud indicators detected."
+      },
+      "createdAt": 1790659249234,
+      "updatedAt": 1790659263033,
+      "evidence": {
+        "imageCid": "bafkreiaz2mf26k6udw64dn6fvmchqbzfhdl5qduotae4bwj5gn2qm76quy",
+        "imageUrl": "https://gateway.pinata.cloud/ipfs/bafkreiaz2mf26k6udw64dn6fvmchqbzfhdl5qduotae4bwj5gn2qm76quy",
+        "metadataCid": "bafkreiaba3lmy4gayqvypo7e5xjso2r7noblbiouzjkqzxya36hwzgwuge",
+        "metadataUrl": "https://gateway.pinata.cloud/ipfs/bafkreiaba3lmy4gayqvypo7e5xjso2r7noblbiouzjkqzxya36hwzgwuge",
+        "imageSha256": "19d30baf2bd41dbdc1b7c5ab0478072538d7d80e8e9809c0d93d3375067fd0a6"
+      },
+      "nft": {
+        "status": "NFT_MINTED",
+        "attempts": 1,
+        "tokenURI": "ipfs://bafkreiaba3lmy4gayqvypo7e5xjso2r7noblbiouzjkqzxya36hwzgwuge",
+        "metadataCid": "bafkreiaba3lmy4gayqvypo7e5xjso2r7noblbiouzjkqzxya36hwzgwuge",
+        "imageCid": "bafkreiaz2mf26k6udw64dn6fvmchqbzfhdl5qduotae4bwj5gn2qm76quy",
+        "lastAttemptAt": "2026-09-29T05:20:52.611Z",
+        "errorCode": null,
+        "errorMessage": null,
+        "transactionHash": "0xcf280e5fe61c8163c7beac6b89f8142e6f678f3294af37c2378c7e771ff011ff",
+        "submittedAt": "2026-09-29T05:20:54.233Z",
+        "explorerUrl": "https://sepolia.etherscan.io/tx/0xcf280e5fe61c8163c7beac6b89f8142e6f678f3294af37c2378c7e771ff011ff",
+        "tokenId": "1",
+        "contractAddress": "0x329e4AD49f460fFE730Dc6E5E5688A7a75378C62",
+        "recipient": "0xa40FEDCFAa63a5AD0f0eDF17A2DD1A64Ba7a5325",
+        "blockNumber": 11805572,
+        "mintedAt": "2026-09-29T05:21:03.033Z",
+        "tokenExplorerUrl": "https://sepolia.etherscan.io/nft/0x329e4AD49f460fFE730Dc6E5E5688A7a75378C62/1"
+      }
     }
   ],
-  "updatedAt": 1783677828286
+  "updatedAt": 1790659263033
 }

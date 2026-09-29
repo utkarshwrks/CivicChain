@@ -4,25 +4,34 @@ Date: 2026-09-29 (UTC 2026-09-28T23:06Z) · Branch `main` · Only real, observed
 
 ## 1. Live Ethereum Sepolia
 
+Live run: 2026-09-29.
+
 | Item | Value |
 |---|---|
-| Sepolia RPC reachable (read-only, public endpoint) | ✅ yes — `eth_chainId` = **11155111**, latest block **11,803,698** at the time of the check |
-| Backend minter / deployer address | `0x775c93d2335C638933a36850F08EcC9220E9e783` (fresh Sepolia-only key, stored only in the local git-ignored `.env`) |
-| Minter balance | **0.0 Sepolia ETH** |
-| Contract deployment (`npm run deploy:sepolia`) | **NOT RUN** — the deployer wallet has no Sepolia test ETH. Free faucets need a browser session and, for some, a mainnet balance; they could not be used unattended. |
-| Contract address / deployment tx / Etherscan link | **NOT RUN** (see above) — `deployments/sepolia.json` is created by the deploy script |
-| Mint tx hashes, token IDs, owners | **NOT RUN** — needs the deployed contract, `GEMINI_API_KEY` and `PINATA_JWT` (none configured on this machine) |
-| Metadata CID / image CID + gateway links | **NOT RUN** (needs `PINATA_JWT`) |
-| `npm run smoke:sepolia` | ✅ ran — reports chain 11155111, RPC reachable, latest block, minter address, balance 0.0 and "NOT ready: NFT_CONTRACT_ADDRESS is not set" (correct) |
-| `npm run e2e:sepolia` | ✅ ran — correctly reports `NOT RUN — Sepolia is not ready on the backend` |
+| Sepolia RPC | ✅ `eth_chainId` = **11155111** |
+| Backend minter / deployer / owner | `0x775c93d2335C638933a36850F08EcC9220E9e783` (fresh Sepolia-only key, stored only in the local git-ignored `.env`) |
+| Faucet funding | 0.05 Sepolia ETH from the Google Cloud Web3 faucet |
+| **Contract (CivicIssueNFT)** | `0x329e4AD49f460fFE730Dc6E5E5688A7a75378C62` — https://sepolia.etherscan.io/address/0x329e4AD49f460fFE730Dc6E5E5688A7a75378C62 |
+| Deployment tx | `0xe272d92f2738b05577f11b5b33dba297b748d6a1fc38e10d4991d1deb97d4944` (block **11805526**) — https://sepolia.etherscan.io/tx/0xe272d92f2738b05577f11b5b33dba297b748d6a1fc38e10d4991d1deb97d4944 |
+| Name / symbol | CivicChain Civic Issue / CIVIC |
+| `npm run smoke:sepolia` | ✅ "Sepolia configuration is ready" — minter authorised, balance 0.0484 ETH after deployment |
+| `npm run e2e:sepolia` | ✅ **PASSED** — fresh wallet, EIP-191 login, `flood.png` upload, Gemini → fraud → duplicate → IPFS → mint; on-chain `ownerOf` / `tokenURI` and gateway metadata checked independently |
 
-### To finish the live proof (≈ 10 minutes)
+### First real Civic Issue NFT
 
-1. Fund `0x775c93d2335C638933a36850F08EcC9220E9e783` with ~0.05 Sepolia ETH from a faucet (or put your own new Sepolia-only key in `.env`).
-2. Put `GEMINI_API_KEY` and `PINATA_JWT` in `.env` (a dedicated RPC URL in `SEPOLIA_RPC_URL` is recommended for the demo).
-3. `npm run deploy:sepolia` → copy `NFT_CONTRACT_ADDRESS` and `NFT_DEPLOYMENT_BLOCK` into `.env`.
-4. `npm run smoke:sepolia` → must print "✅ Sepolia configuration is ready".
-5. `npm run dev` and `npm run e2e:sepolia` → prints the real tx hash, token ID, Etherscan and IPFS links. Record them in this file.
+| Item | Value |
+|---|---|
+| Report ID | `RP-1790659249234` (FLOOD · HIGH · AI confidence 95 · Jabalpur · DRAINAGE_DEPARTMENT) |
+| **Token ID** | **1** |
+| **Owner (citizen)** | `0xa40FEDCFAa63a5AD0f0eDF17A2DD1A64Ba7a5325` — not the minter |
+| **Mint tx** | `0xcf280e5fe61c8163c7beac6b89f8142e6f678f3294af37c2378c7e771ff011ff` — https://sepolia.etherscan.io/tx/0xcf280e5fe61c8163c7beac6b89f8142e6f678f3294af37c2378c7e771ff011ff |
+| NFT on Etherscan | https://sepolia.etherscan.io/nft/0x329e4AD49f460fFE730Dc6E5E5688A7a75378C62/1 |
+| Metadata CID | `bafkreiaba3lmy4gayqvypo7e5xjso2r7noblbiouzjkqzxya36hwzgwuge` — https://gateway.pinata.cloud/ipfs/bafkreiaba3lmy4gayqvypo7e5xjso2r7noblbiouzjkqzxya36hwzgwuge |
+| Image CID | `bafkreiaz2mf26k6udw64dn6fvmchqbzfhdl5qduotae4bwj5gn2qm76quy` — https://gateway.pinata.cloud/ipfs/bafkreiaz2mf26k6udw64dn6fvmchqbzfhdl5qduotae4bwj5gn2qm76quy |
+| Metadata check | name uses the report ID, `image` = `ipfs://<image CID>`, "Status at Mint" = OPEN, no reporter address / GPS / landmark |
+| Duplicate gate (live) | `pothole.png` and `garbage.png` were rejected as `DUPLICATE` of existing reports — **no IPFS upload, no transaction** |
+
+Note: Google no longer serves `gemini-2.5-flash` to new API keys. `ai.service.js` now reads `GEMINI_MODEL` (default `gemini-flash-latest`) and falls back to `GEMINI_FALLBACK_MODELS` (default `gemini-flash-lite-latest`) on 404 / 429 / 5xx / timeout. During this run the primary model returned 503 (high demand) and the fallback classified the image.
 
 ## 2. Automated tests (all green)
 
@@ -71,11 +80,11 @@ Bugs found and fixed during the rehearsal: a page transition that stuck after sw
 
 | Criterion | Status |
 |---|---|
-| Real Ethereum Sepolia transaction | ⏳ NOT RUN — deployer unfunded (steps above) |
-| Real ERC-721 NFT | ✅ contract implemented + tested (18 tests, real local mints); ⏳ Sepolia deploy pending funding |
-| Image on IPFS / metadata on IPFS | ✅ implemented + tested with mocks; ⏳ live needs `PINATA_JWT` |
-| NFT owned by the reporting citizen | ✅ tested (JWT address, never the body) |
-| AI civic verification · fraud detection · duplicate detection | ✅ tested; live AI needs `GEMINI_API_KEY` |
+| Real Ethereum Sepolia transaction | ✅ mint tx `0xcf280e5f…11ff` (token #1) |
+| Real ERC-721 NFT | ✅ CivicIssueNFT `0x329e4AD4…8C62` on Sepolia, token #1 |
+| Image on IPFS / metadata on IPFS | ✅ live on Pinata (CIDs above) |
+| NFT owned by the reporting citizen | ✅ token #1 owned by `0xa40FEDCF…5325` (verified on-chain) |
+| AI civic verification · fraud detection · duplicate detection | ✅ tested; live Gemini classification + live duplicate rejection |
 | Civic workflow · reputation system · analytics · role-based governance | ✅ tested |
 | Sepolia explorer integration | ✅ links + Explorer page |
 | No legacy chain dependency | ✅ `check:legacy` green |

@@ -1,0 +1,13 @@
+{
+  "network": "sepolia",
+  "chainId": 11155111,
+  "contractName": "CivicIssueNFT",
+  "contractAddress": "0x329e4AD49f460fFE730Dc6E5E5688A7a75378C62",
+  "deployer": "0x775c93d2335C638933a36850F08EcC9220E9e783",
+  "owner": "0x775c93d2335C638933a36850F08EcC9220E9e783",
+  "minter": "0x775c93d2335C638933a36850F08EcC9220E9e783",
+  "transactionHash": "0xe272d92f2738b05577f11b5b33dba297b748d6a1fc38e10d4991d1deb97d4944",
+  "blockNumber": 11805526,
+  "deployedAt": "2026-09-29T05:12:02.105Z",
+  "explorerUrl": "https://sepolia.etherscan.io/address/0x329e4AD49f460fFE730Dc6E5E5688A7a75378C62"
+}
